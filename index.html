@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width">
+<title>CO2 Visu</title>
+
+<style>
+body{font-family:Arial;background:#1e1e1e;color:white;text-align:center;font-size:20px}
+.card{background:#2b2b2b;padding:25px;margin:20px auto;width:90%;max-width:400px;border-radius:15px}
+button{padding:12px;margin:5px;font-size:18px}
+input{padding:10px;font-size:18px;margin:5px}
+canvas{background:#111;border-radius:10px;margin-top:10px}
+.ampel{width:80px;height:80px;border-radius:50%;margin:10px auto}
+.green{background:green}
+.yellow{background:orange}
+.red{background:red}
+</style>
+</head>
+
+<body>
+
+<!-- LOGIN -->
+<div id="loginBox">
+<h2>🔐 Login</h2>
+<input id="user" placeholder="User"><br>
+<input id="pw" type="password"><br>
+<button onclick="login()">Login</button>
+<p id="error"></p>
+</div>
+
+<!-- APP -->
+<div id="app" style="display:none">
+
+<button onclick="showPage('room')">🏠 Raum</button>
+<button onclick="showPage('weather')">🌦️ Wetter</button>
+<button onclick="logout()">🚪 Logout</button>
+
+<!-- RAUM -->
+<div id="room" class="card">
+<h2>🏠 Raum</h2>
+
+<p>🌡️ Temp: <b id="temp"></b> °C</p>
+<p>💧 Feuchte: <b id="hum"></b> %</p>
+<p>🫁 CO₂: <b id="co2"></b> ppm</p>
+
+<div id="ampel" class="ampel green"></div>
+<p id="ampelText">Gut</p>
+
+<canvas id="chart" width="300" height="150"></canvas>
+
+<div id="adminPanel" style="display:none">
+<h3>👨‍🔧 Admin</h3>
+<button onclick="startDemo()">▶️ Demo starten</button>
+<button onclick="stopDemo()">⏹️ Demo stoppen</button>
+<p id="demoStatus">LIVE</p>
+</div>
+
+</div>
+
+<!-- WETTER -->
+<div id="weather" class="card" style="display:none">
+<h2>🌦️ Wetter</h2>
+
+<input id="cityInput" placeholder="Ort eingeben">
+<button onclick="setCity()">Setzen</button>
+
+<p>📍 <b id="cityLabel">Frankfurt</b></p>
+
+<div id="weatherIcon" style="font-size:60px;">☀️</div>
+
+<p>🌡️ Temp: <b id="wTemp"></b> °C</p>
+<p>💧 Feuchte: <b id="wHum"></b> %</p>
+
+<canvas id="weatherChart" width="300" height="150"></canvas>
+</div>
+
+</div>
+
+<script>
+let role="";
+let city="Frankfurt,de";
+let apiKey="24bca8e6df73cf7dbf9c2c65bc0fe900";
+let demoInterval=null;
+
+let co2H=[],tempH=[],humH=[],wTempH=[],wHumH=[];
+let max=50;
+
+// LOGIN
+function login(){
+ if(user.value==="admin" && pw.value==="123"){role="admin";}
+ else if(user.value==="schueler" && pw.value==="schule"){role="schueler";}
+ else{error.innerText="Falsch";return;}
+
+ loginBox.style.display="none";
+ app.style.display="block";
+
+ if(role==="admin") adminPanel.style.display="block";
+}
+
+// NAV
+function showPage(p){
+ room.style.display="none";
+ weather.style.display="none";
+ document.getElementById(p).style.display="block";
+}
+
+// LOGOUT
+function logout(){
+ app.style.display="none";
+ loginBox.style.display="block";
+}
+
+// WETTER API
+async function loadWeather(){
+ let url=`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${apiKey}&units=metric`;
+ let res=await fetch(url);
+ let d=await res.json();
+
+ return {
+  wTemp:d.main.temp,
+  wHum:d.main.humidity,
+  weather:d.weather[0].main
+ };
+}
+
+// ICON
+function getIcon(w){
+ if(!w) return "☀️";
+ if(w.includes("Cloud")) return "☁️";
+ if(w.includes("Rain")) return "🌧️";
+ if(w.includes("Clear")) return "☀️";
+ return "🌤️";
+}
+
+// CO2 AMPEL + ALARM
+function updateAmpel(co2){
+ ampel.className="ampel";
+
+ if(co2<800){
+  ampel.classList.add("green");
+  ampelText.innerText="Gut";
+ }
+ else if(co2<1200){
+  ampel.classList.add("yellow");
+  ampelText.innerText="Mittel";
+ }
+ else{
+  ampel.classList.add("red");
+  ampelText.innerText="❗ LÜFTEN!";
+  if(role==="admin") alert("⚠️ CO2 zu hoch → Lüften!");
+ }
+}
+
+// LOAD
+async function load(){
+
+ let res=await fetch("https://fsat23-tempfeuchteco2-default-rtdb.europe-west1.firebasedatabase.app/data.json");
+ let d=await res.json();
+ if(!d) return;
+
+ let w=await loadWeather();
+
+ temp.innerText=Number(d.temp).toFixed(2);
+ hum.innerText=Number(d.hum).toFixed(2);
+ co2.innerText=Math.floor(d.co2);
+
+ wTemp.innerText=Number(w.wTemp).toFixed(2);
+ wHum.innerText=Number(w.wHum).toFixed(2);
+
+ weatherIcon.innerText=getIcon(w.weather);
+ cityLabel.innerText=city.split(",")[0];
+
+ updateAmpel(d.co2);
+
+ co2H.push(d.co2); tempH.push(d.temp); humH.push(d.hum);
+ wTempH.push(w.wTemp); wHumH.push(w.wHum);
+
+ if(co2H.length>max){
+  co2H.shift(); tempH.shift(); humH.shift();
+  wTempH.shift(); wHumH.shift();
+ }
+
+ draw(); drawWeather();
+}
+
+setInterval(load,3000);
+
+// DIAGRAMM RAUM
+function draw(){
+ let c=chart.getContext("2d");
+ c.clearRect(0,0,300,150);
+
+ function line(data,color,min,maxv){
+  c.beginPath();
+  data.forEach((v,i)=>{
+   let x=i/(max-1)*300;
+   let y=150-((v-min)/(maxv-min))*150;
+   i?c.lineTo(x,y):c.moveTo(x,y);
+  });
+  c.strokeStyle=color;c.stroke();
+ }
+
+ line(co2H,"lime",400,2000);
+ line(tempH,"cyan",0,40);
+ line(humH,"yellow",0,100);
+}
+
+// DIAGRAMM WETTER
+function drawWeather(){
+ let c=weatherChart.getContext("2d");
+ c.clearRect(0,0,300,150);
+
+ function line(data,color,min,maxv){
+  c.beginPath();
+  data.forEach((v,i)=>{
+   let x=i/(max-1)*300;
+   let y=150-((v-min)/(maxv-min))*150;
+   i?c.lineTo(x,y):c.moveTo(x,y);
+  });
+  c.strokeStyle=color;c.stroke();
+ }
+
+ line(wTempH,"orange",-10,40);
+ line(wHumH,"blue",0,100);
+}
+
+// DEMO START
+function startDemo(){
+
+ if(demoInterval) return;
+
+ demoInterval=setInterval(()=>{
+
+  let data={
+    temp:20+Math.random()*5,
+    hum:40+Math.random()*20,
+    co2:400+Math.random()*1200
+  };
+
+  fetch("https://fsat23-tempfeuchteco2-default-rtdb.europe-west1.firebasedatabase.app/data.json",{
+    method:"PUT",
+    headers:{"Content-Type":"application/json"},
+    body:JSON.stringify(data)
+  });
+
+ },3000);
+
+ demoStatus.innerText="DEMO AKTIV";
+}
+
+// DEMO STOP
+function stopDemo(){
+ if(demoInterval){
+  clearInterval(demoInterval);
+  demoInterval=null;
+  demoStatus.innerText="LIVE";
+ }
+}
+
+// STANDORT ÄNDERN
+function setCity(){
+ city=cityInput.value+",de";
+}
+</script>
+
+</body>
+</html>
