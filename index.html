@@ -225,20 +225,25 @@ function drawWeather(){
  line(wHumH,"blue",0,100);
 }
 
+let demoInterval = null;
+
 // DEMO START
 function startDemo(){
 
- if(demoInterval) return;
+ if(demoInterval !== null){
+   console.log("Demo läuft schon");
+   return;
+ }
 
- demoInterval=setInterval(()=>{
+ demoInterval = setInterval(()=>{
 
-  let data={
-    temp:20+Math.random()*5,
-    hum:40+Math.random()*20,
-    co2:400+Math.random()*1200
+  let data = {
+    temp: 20 + Math.random()*5,
+    hum: 40 + Math.random()*20,
+    co2: 400 + Math.random()*1200
   };
 
-  fetch("https://fsat23-tempfeuchteco2-default-rtdb.europe-west1.firebasedatabase.app/data.json",{
+  fetch("https://DEIN-PROJEKT-default-rtdb.europe-west1.firebasedatabase.app/data.json",{
     method:"PUT",
     headers:{"Content-Type":"application/json"},
     body:JSON.stringify(data)
@@ -246,16 +251,24 @@ function startDemo(){
 
  },3000);
 
- demoStatus.innerText="DEMO AKTIV";
+ demoStatus.innerText = "DEMO AKTIV";
 }
 
 // DEMO STOP
 function stopDemo(){
- if(demoInterval){
-  clearInterval(demoInterval);
-  demoInterval=null;
-  demoStatus.innerText="LIVE";
+
+ if(demoInterval === null){
+   console.log("Demo läuft nicht");
+   return;
  }
+
+ clearInterval(demoInterval);
+ demoInterval = null;
+
+ demoStatus.innerText = "LIVE";
+
+ console.log("Demo gestoppt");
+}
 }
 
 // STANDORT ÄNDERN
