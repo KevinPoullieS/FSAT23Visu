@@ -1,321 +1,257 @@
 <!DOCTYPE html>
-<html lang="de">
-<head> <link rel="icon" href="icon.png">
-<link rel="apple-touch-icon" href="icon.png">
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width">
-<title>CO2 Visu</title>
+<html>
+<head>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<title>CO2 PRO</title>
+
+<link rel="manifest" href="manifest.json">
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
-body{font-family:Arial;background:#1e1e1e;color:white;text-align:center;font-size:20px}
-.card{background:#2b2b2b;padding:25px;margin:20px auto;width:90%;max-width:420px;border-radius:15px}
-button{padding:12px;margin:5px;font-size:18px}
-input,select{padding:10px;font-size:18px;margin:5px}
-canvas{background:#111;border-radius:10px;margin-top:10px}
-.ampel{width:80px;height:80px;border-radius:50%;margin:10px auto}
-.green{background:green}
-.yellow{background:orange}
-.red{background:red}
+body{font-family:Arial;background:#111;color:white;text-align:center;margin:0}
+.card{background:#222;padding:15px;margin:10px;border-radius:15px}
+button{padding:15px;font-size:18px;width:90%;margin:5px;border-radius:10px}
+.value{font-size:28px}
+.ampel{width:80px;height:80px;border-radius:50%;margin:auto}
+input{padding:10px;border-radius:10px;border:none;width:80%}
 </style>
 </head>
 
 <body>
 
 <!-- LOGIN -->
-<div id="loginBox">
-<h2>🔐 Login</h2>
-<input id="user" placeholder="User"><br>
-<input id="pw" type="password"><br>
-<button onclick="login()">Login</button>
-<p id="error"></p>
+<div id="login">
+<h2>Login</h2>
+<input id="pw" placeholder="Admin Passwort">
+<button onclick="login()">Admin</button>
+<button onclick="loginSchueler()">Schüler</button>
 </div>
 
 <!-- APP -->
 <div id="app" style="display:none">
 
-<button onclick="showPage('room')">🏠 Raum</button>
-<button onclick="showPage('weather')">🌦️ Wetter</button>
-<button onclick="logout()">🚪 Logout</button>
+<button onclick="show('raum')">🏠 Raum</button>
+<button onclick="show('wetter')">🌦️ Wetter</button>
+<button onclick="show('handout')">📄 Handout</button>
+<button onclick="show('settings')" id="adminBtn" style="display:none">⚙️ Admin</button>
 
 <!-- RAUM -->
-<div id="room" class="card">
-<h2>🏠 Raum</h2>
+<div id="raum" class="card">
+<div class="value">🌡️ <span id="temp"></span></div>
+<div class="value">💧 <span id="hum"></span></div>
+<div class="value">🫁 <span id="co2"></span></div>
 
-<p>🌡️ Temp: <b id="temp"></b> °C</p>
-<p>💧 Feuchte: <b id="hum"></b> %</p>
-<p>🫁 CO₂: <b id="co2"></b> ppm</p>
+<div id="ampel" class="ampel"></div>
+<p id="ampelText"></p>
 
-<div id="ampel" class="ampel green"></div>
-<p id="ampelText">Gut</p>
-
-<canvas id="chart" width="300" height="150"></canvas>
-
-<div id="adminPanel" style="display:none">
-<h3>👨‍🔧 Admin</h3>
-
-<button onclick="startDemo()">▶️ Demo starten</button>
-<button onclick="stopDemo()">⏹️ Demo stoppen</button>
-
-<p>Status: <b id="demoStatus">LIVE</b></p>
-
-<h4>🔔 Alarm Einstellungen</h4>
-
-<select id="alarmMode">
-  <option value="off">Aus</option>
-  <option value="once">Nur einmal</option>
-  <option value="5">Alle 5 Minuten</option>
-  <option value="10">Alle 10 Minuten</option>
-</select>
-
-<p>Modus: <b id="alarmStatus">Aus</b></p>
-
-</div>
-
+<canvas id="roomChart"></canvas>
 </div>
 
 <!-- WETTER -->
-<div id="weather" class="card" style="display:none">
-<h2>🌦️ Wetter</h2>
+<div id="wetter" class="card" style="display:none">
 
-<input id="cityInput" placeholder="Ort eingeben">
-<button onclick="setCity()">Setzen</button>
+<input id="cityInput" placeholder="Ort">
+<button onclick="setCity()">Speichern</button>
 
-<p>📍 <b id="cityLabel">Frankfurt</b></p>
+<p id="city"></p>
 
-<div id="weatherIcon" style="font-size:60px;">☀️</div>
+<p>Jetzt: <span id="wNow"></span></p>
+<p>+1h: <span id="w1"></span></p>
+<p>+2h: <span id="w2"></span></p>
+<p>07:00: <span id="w7"></span></p>
+<p>18:00: <span id="w18"></span></p>
 
-<p>🌡️ Temp: <b id="wTemp"></b> °C</p>
-<p>💧 Feuchte: <b id="wHum"></b> %</p>
+<canvas id="weatherChart"></canvas>
 
-<canvas id="weatherChart" width="300" height="150"></canvas>
+</div>
+
+<!-- HANDOUT -->
+<div id="handout" class="card" style="display:none">
+<h2>📄 Handout</h2>
+
+<a id="https://docs.google.com/document/d/1vZZlc7wwWzuf_9XTWxaG5xrb-6dRvmpX4tdyj-5-cx0/export?format=pdf" target="_blank">
+<button>📥 Download</button>
+</a>
+</div>
+
+<!-- ADMIN -->
+<div id="settings" class="card" style="display:none">
+
+<select id="switchTime">
+<option value="5000">5s</option>
+<option value="10000">10s</option>
+<option value="60000">1min</option>
+<option value="120000">2min</option>
+</select>
+
+<button onclick="saveSettings()">Speichern</button>
+
+<h3>Handout Link</h3>
+<input id="handoutInput" placeholder="Link">
+<button onclick="saveHandout()">Speichern</button>
+
+<button onclick="startDemo()">Demo Start</button>
+<button onclick="stopDemo()">Demo Stop</button>
+
+<button id="installBtn" style="display:none">📲 Install</button>
+
 </div>
 
 </div>
 
 <script>
-let role="";
-let city="Frankfurt,de";
-let apiKey="24bca8e6df73cf7dbf9c2c65bc0fe900";
 
-let demoInterval=null;
-let alarmMode="off";
-let lastAlarmTime=0;
+// CONFIG
+let url="https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app/data.json";
+let apiKey="e733d08921989a3920c3e85507388b6e";
+let cityName="Worms";
 
-let co2H=[],tempH=[],humH=[],wTempH=[],wHumH=[];
-let max=50;
+let admin=false;
 
 // LOGIN
 function login(){
- if(user.value==="admin" && pw.value==="123"){role="admin";}
- else if(user.value==="schueler" && pw.value==="schule"){role="schueler";}
- else{error.innerText="Falsch";return;}
-
- loginBox.style.display="none";
+ if(pw.value==="12345"){
+  admin=true;
+  start();
+  adminBtn.style.display="block";
+ }
+}
+function loginSchueler(){start();}
+function start(){
+ login.style.display="none";
  app.style.display="block";
-
- if(role==="admin") adminPanel.style.display="block";
 }
 
 // NAV
-function showPage(p){
- room.style.display="none";
- weather.style.display="none";
- document.getElementById(p).style.display="block";
+function show(id){
+ document.querySelectorAll(".card").forEach(x=>x.style.display="none");
+ document.getElementById(id).style.display="block";
 }
 
-// LOGOUT
-function logout(){
- app.style.display="none";
- loginBox.style.display="block";
-}
-
-// WETTER API
-async function loadWeather(){
- let url=`https://api.openweathermap.org/data/2.5/weather?q=${city}&appid=${apiKey}&units=metric`;
- let res=await fetch(url);
- let d=await res.json();
-
- return {
-  wTemp:d.main.temp,
-  wHum:d.main.humidity,
-  weather:d.weather[0].main
- };
-}
-
-// ICON
-function getIcon(w){
- if(!w) return "☀️";
- if(w.includes("Cloud")) return "☁️";
- if(w.includes("Rain")) return "🌧️";
- if(w.includes("Clear")) return "☀️";
- return "🌤️";
-}
-
-// CO2 AMPEL + ALARM
-function updateAmpel(co2){
-
- ampel.className="ampel";
-
- if(co2<800){
-  ampel.classList.add("green");
-  ampelText.innerText="Gut";
-  return;
- }
-
- if(co2<1200){
-  ampel.classList.add("yellow");
-  ampelText.innerText="Mittel";
-  return;
- }
-
- ampel.classList.add("red");
- ampelText.innerText="❗ LÜFTEN!";
-
- if(role !== "admin") return;
-
- let now=Date.now();
-
- if(alarmMode==="off") return;
-
- if(alarmMode==="once"){
-  if(lastAlarmTime===0){
-    alert("⚠️ CO2 zu hoch → Lüften!");
-    lastAlarmTime=now;
-  }
-  return;
- }
-
- let interval=Number(alarmMode)*60000;
-
- if(now-lastAlarmTime>interval){
-  alert("⚠️ CO2 zu hoch → Lüften!");
-  lastAlarmTime=now;
+// AMPEL
+function updateAmpel(c){
+ if(c<800){ampel.style.background="green";ampelText.innerText="Gut";}
+ else if(c<1200){ampel.style.background="orange";}
+ else{
+  ampel.style.background="red";
+  notify("❗ Lüften! CO2 "+c);
  }
 }
+
+// CHART
+let roomChart=new Chart(document.getElementById("roomChart"),{
+ type:"line",
+ data:{labels:[],datasets:[
+  {label:"Temp",data:[]},
+  {label:"Hum",data:[]},
+  {label:"CO2",data:[]}
+ ]}
+});
 
 // LOAD
 async function load(){
-
- let res=await fetch("https://fsat23-tempfeuchteco2-default-rtdb.europe-west1.firebasedatabase.app/data.json");
+ let res=await fetch(url);
  let d=await res.json();
- if(!d) return;
 
- let w=await loadWeather();
-
- temp.innerText=Number(d.temp).toFixed(2);
- hum.innerText=Number(d.hum).toFixed(2);
- co2.innerText=Math.floor(d.co2);
-
- wTemp.innerText=Number(w.wTemp).toFixed(2);
- wHum.innerText=Number(w.wHum).toFixed(2);
-
- weatherIcon.innerText=getIcon(w.weather);
- cityLabel.innerText=city.split(",")[0];
+ temp.innerText=d.temp;
+ hum.innerText=d.hum;
+ co2.innerText=d.co2;
 
  updateAmpel(d.co2);
 
- co2H.push(d.co2); tempH.push(d.temp); humH.push(d.hum);
- wTempH.push(w.wTemp); wHumH.push(w.wHum);
-
- if(co2H.length>max){
-  co2H.shift(); tempH.shift(); humH.shift();
-  wTempH.shift(); wHumH.shift();
+ if(d.handout){
+  handoutLink.href=d.handout;
  }
 
- draw(); drawWeather();
+ let t=new Date().toLocaleTimeString();
+
+ roomChart.data.labels.push(t);
+ roomChart.data.datasets[0].data.push(d.temp);
+ roomChart.data.datasets[1].data.push(d.hum);
+ roomChart.data.datasets[2].data.push(d.co2);
+
+ if(roomChart.data.labels.length>20){
+  roomChart.data.labels.shift();
+  roomChart.data.datasets.forEach(ds=>ds.data.shift());
+ }
+
+ roomChart.update();
+}
+
+// WETTER
+function setCity(){cityName=cityInput.value;}
+
+async function loadWeather(){
+ let res=await fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${cityName}&appid=${apiKey}&units=metric`);
+ let d=await res.json();
+
+ city.innerText=d.city.name;
+
+ let l=d.list;
+
+ wNow.innerText=l[0].main.temp.toFixed(1);
+ w1.innerText=l[1].main.temp.toFixed(1);
+ w2.innerText=l[2].main.temp.toFixed(1);
+
+ let t7=l.find(x=>x.dt_txt.includes("06:00")||x.dt_txt.includes("09:00"));
+ let t18=l.find(x=>x.dt_txt.includes("18:00"));
+
+ if(t7) w7.innerText=t7.main.temp.toFixed(1);
+ if(t18) w18.innerText=t18.main.temp.toFixed(1);
+}
+
+// SETTINGS
+function saveSettings(){
+ fetch(url,{method:"PATCH",body:JSON.stringify({switchTime:Number(switchTime.value)})});
+}
+
+// HANDOUT
+function saveHandout(){
+ let link=handoutInput.value;
+ fetch(url,{method:"PATCH",body:JSON.stringify({handout:link})});
+}
+
+// DEMO
+let demo=null;
+function startDemo(){
+ demo=setInterval(()=>{
+  fetch(url,{method:"PATCH",body:JSON.stringify({
+   temp:20+Math.random()*5,
+   hum:40+Math.random()*20,
+   co2:400+Math.random()*1200
+  })});
+ },3000);
+}
+function stopDemo(){clearInterval(demo);}
+
+// PUSH
+function notify(msg){
+ if(Notification.permission==="granted"){
+  new Notification(msg);
+ } else {
+  Notification.requestPermission();
+ }
+}
+
+// INSTALL
+let deferredPrompt;
+window.addEventListener("beforeinstallprompt",e=>{
+ e.preventDefault();
+ deferredPrompt=e;
+ installBtn.style.display="block";
+});
+installBtn.onclick=()=>deferredPrompt.prompt();
+
+// SERVICE WORKER
+if("serviceWorker" in navigator){
+ navigator.serviceWorker.register("service-worker.js");
 }
 
 setInterval(load,3000);
+setInterval(loadWeather,10000);
 
-// DIAGRAMM
-function draw(){
- let c=chart.getContext("2d");
- c.clearRect(0,0,300,150);
-
- function line(data,color,min,maxv){
-  c.beginPath();
-  data.forEach((v,i)=>{
-   let x=i/(max-1)*300;
-   let y=150-((v-min)/(maxv-min))*150;
-   i?c.lineTo(x,y):c.moveTo(x,y);
-  });
-  c.strokeStyle=color;c.stroke();
- }
-
- line(co2H,"lime",400,2000);
- line(tempH,"cyan",0,40);
- line(humH,"yellow",0,100);
-}
-
-// WETTER DIAGRAMM
-function drawWeather(){
- let c=weatherChart.getContext("2d");
- c.clearRect(0,0,300,150);
-
- function line(data,color,min,maxv){
-  c.beginPath();
-  data.forEach((v,i)=>{
-   let x=i/(max-1)*300;
-   let y=150-((v-min)/(maxv-min))*150;
-   i?c.lineTo(x,y):c.moveTo(x,y);
-  });
-  c.strokeStyle=color;c.stroke();
- }
-
- line(wTempH,"orange",-10,40);
- line(wHumH,"blue",0,100);
-}
-
-// DEMO START
-function startDemo(){
-
- if(demoInterval!==null) return;
-
- demoInterval=setInterval(()=>{
-
-  let data={
-    temp:20+Math.random()*5,
-    hum:40+Math.random()*20,
-    co2:400+Math.random()*1200
-  };
-
-  fetch("https://fsat23-tempfeuchteco2-default-rtdb.europe-west1.firebasedatabase.app/data.json",{
-    method:"PUT",
-    headers:{"Content-Type":"application/json"},
-    body:JSON.stringify(data)
-  });
-
- },3000);
-
- demoStatus.innerText="DEMO AKTIV";
-}
-
-// DEMO STOP
-function stopDemo(){
- if(demoInterval!==null){
-  clearInterval(demoInterval);
-  demoInterval=null;
-  demoStatus.innerText="LIVE";
- }
-}
-
-// STANDORT
-function setCity(){
- city=cityInput.value+",de";
-}
-
-// ALARM EINSTELLUNG
-document.getElementById("alarmMode").addEventListener("change", function(){
-
- alarmMode=this.value;
-
- alarmStatus.innerText=
-  alarmMode==="off"?"Aus":
-  alarmMode==="once"?"Einmal":
-  "Alle "+alarmMode+" Minuten";
-
- lastAlarmTime=0;
-});
 </script>
 
 </body>
