@@ -70,9 +70,10 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 
 <div id="handout" class="card" style="display:none">
 <h2>📄 Handout</h2>
-<a id="handoutLink" target="_blank">
-<button>📥 Download</button>
-</a>
+
+<button onclick="openPreview()">👁️ Vorschau</button>
+<button onclick="downloadHandout()">📥 Download</button>
+
 </div>
 
 <div id="settings" class="card" style="display:none">
@@ -169,6 +170,8 @@ let chart=new Chart(roomChart,{
 // LOAD
 async function load(){
  let d=await (await fetch(url)).json();
+
+ setHandout(d);
 
  let s=d.status||{};
  let diff=(Date.now()-s.heartbeat)/1000;
@@ -334,6 +337,33 @@ function checkAlarmAllowed(d){
 
 function checkAlarm(d,c){
  if(checkAlarmAllowed(d)&&c>1200) alert("❗ Lüften!");
+}
+
+ let handoutURL = "";
+
+// aus Firebase laden
+function setHandout(d){
+ if(d.handout){
+  handoutURL = d.handout;
+ }
+}
+
+// Vorschau öffnen
+function openPreview(){
+ if(handoutURL){
+  window.open(handoutURL, "_blank");
+ } else {
+  alert("Kein Handout vorhanden");
+ }
+}
+
+// Download erzwingen
+function downloadHandout(){
+ if(handoutURL){
+  window.open(handoutURL, "_blank");
+ } else {
+  alert("Kein Handout vorhanden");
+ }
 }
 
 // LOOP
