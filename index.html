@@ -18,7 +18,6 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 
 <body>
 
-<!-- LOGIN -->
 <div id="login">
 <h2>Login</h2>
 <button onclick="loginSchueler()">👨‍🎓 Schüler</button><br><br>
@@ -27,7 +26,6 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 <p id="error" style="color:red;"></p>
 </div>
 
-<!-- APP -->
 <div id="app" style="display:none">
 
 <button onclick="show('raum')">🏠 Raum</button>
@@ -35,16 +33,14 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 <button onclick="show('handout')">📄 Handout</button>
 <button onclick="show('settings')" id="adminBtn" style="display:none">⚙️ Admin</button>
 
-<!-- RAUM -->
 <div id="raum" class="card">
 <h2>Raum</h2>
 
 <h3>ESP32 Status</h3>
 <div id="espStatus" class="ampel"></div>
 <p id="espText"></p>
-
-<p>📶 Signal: <span id="wifi"></span></p>
-<p>🔋 Spannung: <span id="volt"></span> V</p>
+<p>📶 <span id="wifi"></span> dBm</p>
+<p>🔋 <span id="volt"></span> V</p>
 
 <div class="value">🌡️ DHT: <span id="temp">--</span></div>
 <div class="value">🔥 KTY: <span id="kty">--</span></div>
@@ -57,18 +53,14 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 <canvas id="roomChart"></canvas>
 </div>
 
-<!-- WETTER -->
 <div id="wetter" class="card" style="display:none">
 <h2>Wetter</h2>
-
 <input id="cityInput" placeholder="Ort">
 <button onclick="setCity()">Speichern</button>
-
 <p id="city"></p>
 <p id="wNow"></p>
 </div>
 
-<!-- HANDOUT -->
 <div id="handout" class="card" style="display:none">
 <h2>📄 Handout</h2>
 <a id="handoutLink" target="_blank">
@@ -76,23 +68,22 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 </a>
 </div>
 
-<!-- ADMIN -->
 <div id="settings" class="card" style="display:none">
 
 <h2>Admin</h2>
 
 <h3>🎮 Demo</h3>
 
-<label>Temp</label>
+<p>🌡️ Temp: <span id="tempVal">20</span> °C (Min:-5 / Max:50)</p>
 <input id="tempSlider" type="range" min="-5" max="50" value="20">
 
-<label>Feuchte</label>
+<p>💧 Feuchte: <span id="humVal">50</span> % (Min:0 / Max:100)</p>
 <input id="humSlider" type="range" min="0" max="100" value="50">
 
-<label>CO2</label>
+<p>🫁 CO2: <span id="co2Val">800</span> ppm (Min:400 / Max:2000)</p>
 <input id="co2Slider" type="range" min="400" max="2000" value="800">
 
-<label>Wetter Temp</label>
+<p>🌦️ Wetter: <span id="weatherVal">15</span> °C (Min:-10 / Max:40)</p>
 <input id="weatherSlider" type="range" min="-10" max="40" value="15">
 
 <select id="weatherType">
@@ -115,7 +106,6 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 <option value="24">Pause 24h</option>
 <option value="off">AUS</option>
 </select>
-
 <button onclick="saveAlarm()">Speichern</button>
 
 </div>
@@ -124,7 +114,6 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 
 <script>
 
-// CONFIG
 let url="https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app/data.json";
 let apiKey="e733d08921989a3920c3e85507388b6e";
 let cityName="Worms";
@@ -148,8 +137,21 @@ function show(id){
  document.getElementById(id).style.display="block";
 }
 
+// SLIDER LIVE
+tempSlider.oninput=()=>updateSlider(tempSlider,tempVal,30,10);
+humSlider.oninput=()=>humVal.innerText=humSlider.value;
+co2Slider.oninput=()=>co2Val.innerText=co2Slider.value;
+weatherSlider.oninput=()=>weatherVal.innerText=weatherSlider.value;
+
+function updateSlider(slider,output,max,low){
+ output.innerText=slider.value;
+ if(slider.value>max) output.style.color="red";
+ else if(slider.value<low) output.style.color="blue";
+ else output.style.color="white";
+}
+
 // CHART
-let chart=new Chart(document.getElementById("roomChart"),{
+let chart=new Chart(roomChart,{
  type:"line",
  data:{labels:[],datasets:[
   {label:"DHT",data:[],borderColor:"orange",yAxisID:"y"},
@@ -157,43 +159,24 @@ let chart=new Chart(document.getElementById("roomChart"),{
   {label:"Hum",data:[],borderColor:"blue",yAxisID:"y1"},
   {label:"CO2",data:[],borderColor:"green",yAxisID:"y1"}
  ]},
- options:{
-  scales:{
-   y:{position:"left"},
-   y1:{position:"right",grid:{drawOnChartArea:false}}
-  }
- }
+ options:{scales:{y:{position:"left"},y1:{position:"right",grid:{drawOnChartArea:false}}}}
 });
-
-// RESET CHART
-function clearChart(){
- chart.data.labels=[];
- chart.data.datasets.forEach(d=>d.data=[]);
- chart.update();
-}
 
 // LOAD
 async function load(){
-
  let d=await (await fetch(url)).json();
 
- // ESP STATUS
  let s=d.status||{};
  let diff=(Date.now()-s.heartbeat)/1000;
 
- if(diff<10){
-  espStatus.style.background="green";
-  espText.innerText="Verbunden";
- }else{
-  espStatus.style.background="red";
-  espText.innerText="Offline";
- }
+ espStatus.style.background=diff<10?"green":"red";
+ espText.innerText=diff<10?"Online":"Offline";
 
- wifi.innerText=s.rssi+" dBm";
+ wifi.innerText=s.rssi||"--";
  volt.innerText=(s.voltage||0).toFixed(2);
 
- // MODE
  let mode=d.mode||"live";
+
  let v=(mode==="demo")?{
   temp:d.demo.temp,
   kty:d.demo.temp+2,
@@ -208,8 +191,8 @@ async function load(){
 
  updateAmpel(v.co2);
 
- // CHART
  let t=new Date().toLocaleTimeString();
+
  chart.data.labels.push(t);
  chart.data.datasets[0].data.push(v.temp);
  chart.data.datasets[1].data.push(v.kty);
@@ -223,7 +206,6 @@ async function load(){
 
  chart.update();
 
- // HANDOUT
  if(d.handout) handoutLink.href=d.handout;
 
  checkAlarm(d,v.co2);
@@ -251,35 +233,36 @@ function startDemo(){
     }
   })
  });
- clearChart();
+ chart.data.labels=[];
+ chart.data.datasets.forEach(ds=>ds.data=[]);
 }
 
 // LIVE
 function goLive(){
  fetch(url,{method:"PATCH",body:JSON.stringify({mode:"live"})});
- clearChart();
+ chart.data.labels=[];
+ chart.data.datasets.forEach(ds=>ds.data=[]);
 }
 
 // WETTER
 function setCity(){cityName=cityInput.value;}
 
 async function loadWeather(){
-
  let d=await (await fetch(url)).json();
 
  if(d.mode==="demo"){
   let w=d.demo.weatherType;
   let t=d.demo.weatherTemp;
 
-  let emoji="☁️";
-  if(w==="Clear") emoji="☀️";
-  if(w==="Rain") emoji="🌧️";
-  if(w==="Thunderstorm") emoji="⛈️";
-  if(w==="Snow") emoji="❄️";
-  if(w==="Ash") emoji="🌋";
+  let e="☁️";
+  if(w==="Clear") e="☀️";
+  if(w==="Rain") e="🌧️";
+  if(w==="Thunderstorm") e="⛈️";
+  if(w==="Snow") e="❄️";
+  if(w==="Ash") e="🌋";
 
   city.innerText="📍 Demo";
-  wNow.innerText=emoji+" "+t+"°C";
+  wNow.innerText=e+" "+t+"°C";
   return;
  }
 
@@ -289,19 +272,17 @@ async function loadWeather(){
  let type=w.list[0].weather[0].main;
  let t=w.list[0].main.temp;
 
- let emoji="☁️";
- if(type.includes("Clear")) emoji="☀️";
- else if(type.includes("Rain")) emoji="🌧️";
- else if(type.includes("Thunderstorm")) emoji="⛈️";
- else if(type.includes("Snow")) emoji="❄️";
- else if(type.includes("Mist")) emoji="🌫️";
+ let e="☁️";
+ if(type.includes("Clear")) e="☀️";
+ else if(type.includes("Rain")) e="🌧️";
+ else if(type.includes("Thunderstorm")) e="⛈️";
+ else if(type.includes("Snow")) e="❄️";
+ else if(type.includes("Mist")) e="🌫️";
 
  city.innerText="📍 "+w.city.name;
- wNow.innerText=emoji+" "+t.toFixed(1)+"°C";
+ wNow.innerText=e+" "+t.toFixed(1)+"°C";
 
- if(type.includes("Rain")||type.includes("Ash")){
-  alert("🌧️ Fenster zu!");
- }
+ if(type.includes("Rain")||type.includes("Ash")) alert("🌧️ Fenster zu!");
 }
 
 // ALARM
@@ -318,15 +299,12 @@ function saveAlarm(){
 function checkAlarmAllowed(d){
  if(!d.alarmMode||d.alarmMode==="on") return true;
  if(d.alarmMode==="off") return false;
-
  let h=Number(d.alarmMode);
  return ((Date.now()-d.alarmTime)/(1000*60*60))>h;
 }
 
 function checkAlarm(d,c){
- if(checkAlarmAllowed(d)&&c>1200){
-  alert("❗ Lüften!");
- }
+ if(checkAlarmAllowed(d)&&c>1200) alert("❗ Lüften!");
 }
 
 // LOOP
