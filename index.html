@@ -2,7 +2,7 @@
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CO2 PRO</title>
+<title>CO2 PRO ULTIMATE</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
@@ -10,10 +10,9 @@
 body{font-family:Arial;background:#111;color:white;text-align:center;margin:0}
 .card{background:#222;padding:15px;margin:10px;border-radius:15px}
 button{padding:15px;font-size:18px;width:90%;margin:5px;border-radius:10px;border:none}
-.value{font-size:24px}
+.value{font-size:20px}
 .ampel{width:80px;height:80px;border-radius:50%;margin:auto}
-input{padding:10px;border-radius:10px;border:none;width:80%}
-label{display:block;margin-top:10px}
+input,select{padding:10px;border-radius:10px;border:none;width:80%}
 </style>
 </head>
 
@@ -22,8 +21,7 @@ label{display:block;margin-top:10px}
 <!-- LOGIN -->
 <div id="login">
 <h2>Login</h2>
-<button onclick="loginSchueler()">👨‍🎓 Schüler</button>
-<br><br>
+<button onclick="loginSchueler()">👨‍🎓 Schüler</button><br><br>
 <input id="pw" placeholder="Admin Passwort">
 <button onclick="loginAdmin()">👨‍🔧 Admin</button>
 <p id="error" style="color:red;"></p>
@@ -41,10 +39,10 @@ label{display:block;margin-top:10px}
 <div id="raum" class="card">
 <h2>Raum</h2>
 
-<div class="value">🌡️ DHT: <span id="temp">--</span> °C</div>
-<div class="value">🔥 KTY: <span id="kty">--</span> °C</div>
-<div class="value">💧 <span id="hum">--</span> %</div>
-<div class="value">🫁 <span id="co2">--</span> ppm</div>
+<div class="value">🌡️ DHT: <span id="temp">--</span></div>
+<div class="value">🔥 KTY: <span id="kty">--</span></div>
+<div class="value">💧 <span id="hum">--</span></div>
+<div class="value">🫁 <span id="co2">--</span></div>
 
 <div id="ampel" class="ampel"></div>
 <p id="ampelText"></p>
@@ -60,19 +58,17 @@ label{display:block;margin-top:10px}
 <button onclick="setCity()">Speichern</button>
 
 <p id="city"></p>
+<p id="wNow"></p>
+<p id="w1"></p>
+<p id="w2"></p>
 
-<p>Jetzt: <span id="wNow"></span></p>
-<p>+1h: <span id="w1"></span></p>
-<p>+2h: <span id="w2"></span></p>
-<p>07:00: <span id="w7"></span></p>
-<p>18:00: <span id="w18"></span></p>
 </div>
 
 <!-- HANDOUT -->
 <div id="handout" class="card" style="display:none">
 <h2>📄 Handout</h2>
 <a id="handoutLink" target="_blank">
-<button>📥 Download</button>
+<button>Download</button>
 </a>
 </div>
 
@@ -81,32 +77,19 @@ label{display:block;margin-top:10px}
 
 <h2>Admin</h2>
 
-<select id="switchTime">
-<option value="5000">5s</option>
-<option value="10000">10s</option>
-<option value="60000">1min</option>
-<option value="120000">2min</option>
+<button onclick="startDemo()">🎮 Demo</button>
+<button onclick="goLive()">📡 Live</button>
+
+<h3>🔔 Alarm</h3>
+<select id="alarmMode">
+<option value="on">AN</option>
+<option value="1">Pause 1h</option>
+<option value="6">Pause 6h</option>
+<option value="24">Pause 24h</option>
+<option value="off">AUS</option>
 </select>
 
-<button onclick="saveSettings()">Speichern</button>
-
-<h3>Handout Link</h3>
-<input id="handoutInput">
-<button onclick="saveHandout()">Speichern</button>
-
-<h3>🎮 Demo</h3>
-
-<label>Temp: <span id="tempVal">20</span></label>
-<input type="range" min="-5" max="50" value="20" id="tempSlider">
-
-<label>Feuchte: <span id="humVal">50</span></label>
-<input type="range" min="0" max="100" value="50" id="humSlider">
-
-<label>CO2: <span id="co2Val">800</span></label>
-<input type="range" min="400" max="2000" value="800" id="co2Slider">
-
-<button onclick="startDemo()">Start</button>
-<button onclick="stopDemo()">Stop</button>
+<button onclick="saveAlarm()">Speichern</button>
 
 </div>
 
@@ -118,17 +101,16 @@ label{display:block;margin-top:10px}
 let url="https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app/data.json";
 let apiKey="e733d08921989a3920c3e85507388b6e";
 let cityName="Worms";
-let admin=false;
+
+let demoMode=false;
+let demo=null;
 
 // LOGIN
 function loginAdmin(){
  if(pw.value==="12345"){
-  admin=true;
   start();
   adminBtn.style.display="block";
- } else {
-  error.innerText="Falsches Passwort!";
- }
+ } else error.innerText="Falsch!";
 }
 function loginSchueler(){start();}
 function start(){
@@ -146,7 +128,7 @@ function show(id){
 function updateAmpel(c){
  if(c<800){ampel.style.background="green";ampelText.innerText="Gut";}
  else if(c<1200){ampel.style.background="orange";}
- else{ampel.style.background="red";}
+ else{ampel.style.background="red";ampelText.innerText="Lüften!";}
 }
 
 // CHART
@@ -155,16 +137,32 @@ let roomChart=new Chart(document.getElementById("roomChart"),{
  data:{
   labels:[],
   datasets:[
-   {label:"DHT Temp",data:[]},
-   {label:"KTY Temp",data:[]},
-   {label:"Hum",data:[]},
-   {label:"CO2",data:[]}
+   {label:"DHT",data:[],borderColor:"orange",yAxisID:"y"},
+   {label:"KTY",data:[],borderColor:"red",yAxisID:"y"},
+   {label:"Hum",data:[],borderColor:"blue",yAxisID:"y1"},
+   {label:"CO2",data:[],borderColor:"green",yAxisID:"y1"}
   ]
+ },
+ options:{
+  scales:{
+   y:{position:"left"},
+   y1:{position:"right",grid:{drawOnChartArea:false}}
+  }
  }
 });
 
+// CLEAR GRAPH
+function clearChart(){
+ roomChart.data.labels=[];
+ roomChart.data.datasets.forEach(ds=>ds.data=[]);
+ roomChart.update();
+}
+
 // LOAD
 async function load(){
+
+ if(demoMode) return;
+
  let d=await (await fetch(url)).json();
 
  temp.innerText=d.temp;
@@ -176,6 +174,8 @@ async function load(){
 
  if(d.handout) handoutLink.href=d.handout;
 
+ checkAlarm(d);
+
  let t=new Date().toLocaleTimeString();
 
  roomChart.data.labels.push(t);
@@ -184,64 +184,110 @@ async function load(){
  roomChart.data.datasets[2].data.push(d.hum);
  roomChart.data.datasets[3].data.push(d.co2);
 
- if(roomChart.data.labels.length>20){
-  roomChart.data.labels.shift();
-  roomChart.data.datasets.forEach(ds=>ds.data.shift());
- }
-
  roomChart.update();
+}
+
+// DEMO
+function startDemo(){
+ demoMode=true;
+ clearChart();
+
+ demo=setInterval(()=>{
+  let t=20+Math.random()*5;
+  let h=40+Math.random()*20;
+  let c=400+Math.random()*1200;
+
+  temp.innerText=t;
+  kty.innerText=t+2;
+  hum.innerText=h;
+  co2.innerText=c;
+
+  updateAmpel(c);
+
+  let time=new Date().toLocaleTimeString();
+
+  roomChart.data.labels.push(time);
+  roomChart.data.datasets[0].data.push(t);
+  roomChart.data.datasets[1].data.push(t+2);
+  roomChart.data.datasets[2].data.push(h);
+  roomChart.data.datasets[3].data.push(c);
+
+  roomChart.update();
+
+ },1000);
+}
+
+// LIVE
+function goLive(){
+ demoMode=false;
+ clearInterval(demo);
+ clearChart();
 }
 
 // WETTER
 function setCity(){cityName=cityInput.value;}
+
 async function loadWeather(){
- let d=await (await fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${cityName}&appid=${apiKey}&units=metric`)).json();
- city.innerText=d.city.name;
- let l=d.list;
- wNow.innerText=l[0].main.temp.toFixed(1);
- w1.innerText=l[1].main.temp.toFixed(1);
- w2.innerText=l[2].main.temp.toFixed(1);
+
+ let d=await (await fetch(
+  `https://api.openweathermap.org/data/2.5/forecast?q=${cityName}&appid=${apiKey}&units=metric`
+ )).json();
+
+ city.innerText="📍 "+d.city.name;
+
+ let w=d.list[0].weather[0].main;
+ let t=d.list[0].main.temp;
+
+ let emoji="☁️";
+
+ if(w.includes("Clear")) emoji="☀️";
+ else if(w.includes("Cloud")) emoji="☁️";
+ else if(w.includes("Rain")) emoji="🌧️";
+ else if(w.includes("Thunderstorm")) emoji="⛈️";
+ else if(w.includes("Snow")) emoji="❄️";
+ else if(w.includes("Mist")) emoji="🌫️";
+ else if(w.includes("Ash")) emoji="🌋";
+
+ wNow.innerText=emoji+" "+t.toFixed(1)+"°C";
+ w1.innerText="+1h: "+d.list[1].main.temp.toFixed(1);
+ w2.innerText="+2h: "+d.list[2].main.temp.toFixed(1);
+
+ checkWeatherAlarm(w);
 }
 
-// SETTINGS
-function saveSettings(){
- fetch(url,{method:"PATCH",body:JSON.stringify({switchTime:Number(switchTime.value)})});
+// ALARM SYSTEM
+function saveAlarm(){
+ fetch(url,{
+  method:"PATCH",
+  body:JSON.stringify({
+   alarmMode:alarmMode.value,
+   alarmTime:Date.now()
+  })
+ });
 }
 
-// HANDOUT
-function saveHandout(){
- fetch(url,{method:"PATCH",body:JSON.stringify({handout:handoutInput.value})});
+function checkAlarmAllowed(d){
+ if(!d.alarmMode||d.alarmMode==="on") return true;
+ if(d.alarmMode==="off") return false;
+
+ let h=Number(d.alarmMode);
+ let diff=(Date.now()- (d.alarmTime||0))/(1000*60*60);
+
+ return diff>h;
 }
 
-// SLIDER
-tempSlider.oninput=()=>tempVal.innerText=tempSlider.value;
-humSlider.oninput=()=>humVal.innerText=humSlider.value;
-co2Slider.oninput=()=>co2Val.innerText=co2Slider.value;
-
-// DEMO
-let demo=null;
-function startDemo(){
- if(demo) return;
- demo=setInterval(()=>{
-  fetch(url,{method:"PATCH",body:JSON.stringify({
-   temp:Number(tempSlider.value),
-   kty:Number(tempSlider.value)+2,
-   hum:Number(humSlider.value),
-   co2:Number(co2Slider.value)
-  })});
- },1000);
+function checkAlarm(d){
+ if(checkAlarmAllowed(d)){
+  if(d.co2>1200){
+   alert("❗ Lüften! Fenster auf!");
+  }
+ }
 }
 
-function stopDemo(){
- clearInterval(demo);
- demo=null;
-
- fetch(url,{method:"PATCH",body:JSON.stringify({
-  temp:22,
-  kty:25,
-  hum:45,
-  co2:800
- })});
+function checkWeatherAlarm(w){
+ if(w.includes("Rain")||w.includes("Ash")){
+  alert("🌧️ Fenster zu!");
+ }
 }
 
 // LOOP
