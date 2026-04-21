@@ -55,10 +55,17 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 
 <div id="wetter" class="card" style="display:none">
 <h2>Wetter</h2>
+
 <input id="cityInput" placeholder="Ort">
 <button onclick="setCity()">Speichern</button>
+
 <p id="city"></p>
-<p id="wNow"></p>
+
+<p>Jetzt: <span id="wNow"></span></p>
+<p>+1h: <span id="w1"></span></p>
+<p>+2h: <span id="w2"></span></p>
+<p>Morgen 07:00: <span id="w7"></span></p>
+
 </div>
 
 <div id="handout" class="card" style="display:none">
@@ -74,16 +81,19 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 
 <h3>🎮 Demo</h3>
 
-<p>🌡️ Temp: <span id="tempVal">20</span> °C (Min:-5 / Max:50)</p>
+<p>🌡️ Temp: <span id="tempVal">20</span> °C</p>
 <input id="tempSlider" type="range" min="-5" max="50" value="20">
 
-<p>💧 Feuchte: <span id="humVal">50</span> % (Min:0 / Max:100)</p>
+<p>🔥 KTY: <span id="ktyVal">22</span> °C</p>
+<input id="ktySlider" type="range" min="-5" max="60" value="22">
+
+<p>💧 Feuchte: <span id="humVal">50</span> %</p>
 <input id="humSlider" type="range" min="0" max="100" value="50">
 
-<p>🫁 CO2: <span id="co2Val">800</span> ppm (Min:400 / Max:2000)</p>
+<p>🫁 CO2: <span id="co2Val">800</span> ppm</p>
 <input id="co2Slider" type="range" min="400" max="2000" value="800">
 
-<p>🌦️ Wetter: <span id="weatherVal">15</span> °C (Min:-10 / Max:40)</p>
+<p>🌦️ Wetter: <span id="weatherVal">15</span> °C</p>
 <input id="weatherSlider" type="range" min="-10" max="40" value="15">
 
 <select id="weatherType">
@@ -124,7 +134,7 @@ function loginAdmin(){
   login.style.display="none";
   app.style.display="block";
   adminBtn.style.display="block";
- } else error.innerText="Falsches Passwort!";
+ } else error.innerText="Falsch!";
 }
 function loginSchueler(){
  login.style.display="none";
@@ -137,18 +147,12 @@ function show(id){
  document.getElementById(id).style.display="block";
 }
 
-// SLIDER LIVE
-tempSlider.oninput=()=>updateSlider(tempSlider,tempVal,30,10);
+// SLIDER
+tempSlider.oninput=()=>tempVal.innerText=tempSlider.value;
+ktySlider.oninput=()=>ktyVal.innerText=ktySlider.value;
 humSlider.oninput=()=>humVal.innerText=humSlider.value;
 co2Slider.oninput=()=>co2Val.innerText=co2Slider.value;
 weatherSlider.oninput=()=>weatherVal.innerText=weatherSlider.value;
-
-function updateSlider(slider,output,max,low){
- output.innerText=slider.value;
- if(slider.value>max) output.style.color="red";
- else if(slider.value<low) output.style.color="blue";
- else output.style.color="white";
-}
 
 // CHART
 let chart=new Chart(roomChart,{
@@ -179,7 +183,7 @@ async function load(){
 
  let v=(mode==="demo")?{
   temp:d.demo.temp,
-  kty:d.demo.temp+2,
+  kty:d.demo.kty,
   hum:d.demo.hum,
   co2:d.demo.co2
  }:d.data;
@@ -226,6 +230,7 @@ function startDemo(){
     mode:"demo",
     demo:{
       temp:+tempSlider.value,
+      kty:+ktySlider.value,
       hum:+humSlider.value,
       co2:+co2Slider.value,
       weatherTemp:+weatherSlider.value,
@@ -248,6 +253,7 @@ function goLive(){
 function setCity(){cityName=cityInput.value;}
 
 async function loadWeather(){
+
  let d=await (await fetch(url)).json();
 
  if(d.mode==="demo"){
@@ -262,27 +268,50 @@ async function loadWeather(){
   if(w==="Ash") e="🌋";
 
   city.innerText="📍 Demo";
+
   wNow.innerText=e+" "+t+"°C";
+  w1.innerText=e+" "+(t+1)+"°C";
+  w2.innerText=e+" "+(t+2)+"°C";
+  w7.innerText=e+" "+(t+3)+"°C";
+
   return;
  }
 
  let res=await fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${cityName}&appid=${apiKey}&units=metric`);
  let w=await res.json();
 
- let type=w.list[0].weather[0].main;
- let t=w.list[0].main.temp;
-
- let e="☁️";
- if(type.includes("Clear")) e="☀️";
- else if(type.includes("Rain")) e="🌧️";
- else if(type.includes("Thunderstorm")) e="⛈️";
- else if(type.includes("Snow")) e="❄️";
- else if(type.includes("Mist")) e="🌫️";
-
  city.innerText="📍 "+w.city.name;
- wNow.innerText=e+" "+t.toFixed(1)+"°C";
 
- if(type.includes("Rain")||type.includes("Ash")) alert("🌧️ Fenster zu!");
+ function getEmoji(type){
+  if(type.includes("Clear")) return "☀️";
+  if(type.includes("Rain")) return "🌧️";
+  if(type.includes("Thunderstorm")) return "⛈️";
+  if(type.includes("Snow")) return "❄️";
+  if(type.includes("Mist")) return "🌫️";
+  return "☁️";
+ }
+
+ let now=w.list[0];
+ let h1=w.list[1];
+ let h2=w.list[2];
+
+ // morgen 7 Uhr suchen
+ let tomorrow7 = w.list.find(x=>{
+  let d=new Date(x.dt*1000);
+  return d.getHours()===7;
+ });
+
+ wNow.innerText=getEmoji(now.weather[0].main)+" "+now.main.temp.toFixed(1)+"°C";
+ w1.innerText=getEmoji(h1.weather[0].main)+" "+h1.main.temp.toFixed(1)+"°C";
+ w2.innerText=getEmoji(h2.weather[0].main)+" "+h2.main.temp.toFixed(1)+"°C";
+
+ if(tomorrow7){
+  w7.innerText=getEmoji(tomorrow7.weather[0].main)+" "+tomorrow7.main.temp.toFixed(1)+"°C";
+ }
+
+ if(now.weather[0].main.includes("Rain")||now.weather[0].main.includes("Ash")){
+  alert("🌧️ Fenster zu!");
+ }
 }
 
 // ALARM
