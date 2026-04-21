@@ -125,7 +125,8 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 
 <script>
 
-let url="https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app/.json";
+let urlData="https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app/data.json";
+let urlRoot="https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app/.json";
 let apiKey="e733d08921989a3920c3e85507388b6e";
 let cityName="Worms";
 
@@ -169,11 +170,18 @@ let chart=new Chart(roomChart,{
 
 // LOAD
 async function load(){
- let d=await (await fetch(url)).json();
 
- setHandout(d);
+ // 🔥 DATA (Sensoren)
+ let d=await (await fetch(urlData)).json();
 
- let s=d.status||{};
+ // 🔥 ROOT (handout etc.)
+ let root=await (await fetch(urlRoot)).json();
+
+ // 👉 HANDOUT FIX
+ setHandout(root);
+
+ // STATUS
+ let s=root.status||{};
  let diff=(Date.now()-s.heartbeat)/1000;
 
  espStatus.style.background=diff<10?"green":"red";
@@ -182,14 +190,14 @@ async function load(){
  wifi.innerText=s.rssi||"--";
  volt.innerText=(s.voltage||0).toFixed(2);
 
- let mode=d.mode||"live";
+ let mode=root.mode||"live";
 
  let v=(mode==="demo")?{
-  temp:d.demo.temp,
-  kty:d.demo.kty,
-  hum:d.demo.hum,
-  co2:d.demo.co2
- }:d.data;
+  temp:root.demo.temp,
+  kty:root.demo.kty,
+  hum:root.demo.hum,
+  co2:root.demo.co2
+ }:d;
 
  temp.innerText=v.temp;
  kty.innerText=v.kty;
@@ -198,6 +206,7 @@ async function load(){
 
  updateAmpel(v.co2);
 
+ // CHART
  let t=new Date().toLocaleTimeString();
 
  chart.data.labels.push(t);
@@ -213,9 +222,7 @@ async function load(){
 
  chart.update();
 
- if(d.handout) handoutLink.href=d.handout;
-
- checkAlarm(d,v.co2);
+ checkAlarm(root,v.co2);
 }
 
 // AMPEL
@@ -343,10 +350,15 @@ function checkAlarm(d,c){
 
 // aus Firebase laden
 function setHandout(d){
+
+ console.log("HANDOUT CHECK:", d.handout);
+
  if(d.handout){
   handoutURL = d.handout;
+ } else {
+  console.log("❌ KEIN HANDOUT!");
  }
-}
+
 
 // Vorschau öffnen
 function openPreview(){
