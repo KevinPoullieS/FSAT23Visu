@@ -2,17 +2,17 @@
 <html>
 <head>
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>CO2 PRO ULTIMATE</title>
+<title>CO2 PRO FINAL</title>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 body{font-family:Arial;background:#111;color:white;text-align:center;margin:0}
 .card{background:#222;padding:15px;margin:10px;border-radius:15px}
-button{padding:15px;font-size:18px;width:90%;margin:5px;border-radius:10px;border:none}
-.value{font-size:20px}
-.ampel{width:80px;height:80px;border-radius:50%;margin:auto}
-input,select{padding:10px;border-radius:10px;border:none;width:80%}
+button{padding:12px;font-size:16px;width:90%;margin:5px;border-radius:10px;border:none}
+.value{font-size:20px;margin:5px}
+.ampel{width:70px;height:70px;border-radius:50%;margin:auto}
+input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 </style>
 </head>
 
@@ -39,6 +39,13 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%}
 <div id="raum" class="card">
 <h2>Raum</h2>
 
+<h3>ESP32 Status</h3>
+<div id="espStatus" class="ampel"></div>
+<p id="espText"></p>
+
+<p>📶 Signal: <span id="wifi"></span></p>
+<p>🔋 Spannung: <span id="volt"></span> V</p>
+
 <div class="value">🌡️ DHT: <span id="temp">--</span></div>
 <div class="value">🔥 KTY: <span id="kty">--</span></div>
 <div class="value">💧 <span id="hum">--</span></div>
@@ -59,16 +66,13 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%}
 
 <p id="city"></p>
 <p id="wNow"></p>
-<p id="w1"></p>
-<p id="w2"></p>
-
 </div>
 
 <!-- HANDOUT -->
 <div id="handout" class="card" style="display:none">
 <h2>📄 Handout</h2>
 <a id="handoutLink" target="_blank">
-<button>Download</button>
+<button>📥 Download</button>
 </a>
 </div>
 
@@ -77,7 +81,30 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%}
 
 <h2>Admin</h2>
 
-<button onclick="startDemo()">🎮 Demo</button>
+<h3>🎮 Demo</h3>
+
+<label>Temp</label>
+<input id="tempSlider" type="range" min="-5" max="50" value="20">
+
+<label>Feuchte</label>
+<input id="humSlider" type="range" min="0" max="100" value="50">
+
+<label>CO2</label>
+<input id="co2Slider" type="range" min="400" max="2000" value="800">
+
+<label>Wetter Temp</label>
+<input id="weatherSlider" type="range" min="-10" max="40" value="15">
+
+<select id="weatherType">
+<option>Clear</option>
+<option>Clouds</option>
+<option>Rain</option>
+<option>Thunderstorm</option>
+<option>Snow</option>
+<option>Ash</option>
+</select>
+
+<button onclick="startDemo()">🎮 Demo Start</button>
 <button onclick="goLive()">📡 Live</button>
 
 <h3>🔔 Alarm</h3>
@@ -102,18 +129,15 @@ let url="https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app
 let apiKey="e733d08921989a3920c3e85507388b6e";
 let cityName="Worms";
 
-let demoMode=false;
-let demo=null;
-
 // LOGIN
 function loginAdmin(){
  if(pw.value==="12345"){
-  start();
+  login.style.display="none";
+  app.style.display="block";
   adminBtn.style.display="block";
- } else error.innerText="Falsch!";
+ } else error.innerText="Falsches Passwort!";
 }
-function loginSchueler(){start();}
-function start(){
+function loginSchueler(){
  login.style.display="none";
  app.style.display="block";
 }
@@ -124,25 +148,15 @@ function show(id){
  document.getElementById(id).style.display="block";
 }
 
-// AMPEL
-function updateAmpel(c){
- if(c<800){ampel.style.background="green";ampelText.innerText="Gut";}
- else if(c<1200){ampel.style.background="orange";}
- else{ampel.style.background="red";ampelText.innerText="Lüften!";}
-}
-
 // CHART
-let roomChart=new Chart(document.getElementById("roomChart"),{
+let chart=new Chart(document.getElementById("roomChart"),{
  type:"line",
- data:{
-  labels:[],
-  datasets:[
-   {label:"DHT",data:[],borderColor:"orange",yAxisID:"y"},
-   {label:"KTY",data:[],borderColor:"red",yAxisID:"y"},
-   {label:"Hum",data:[],borderColor:"blue",yAxisID:"y1"},
-   {label:"CO2",data:[],borderColor:"green",yAxisID:"y1"}
-  ]
- },
+ data:{labels:[],datasets:[
+  {label:"DHT",data:[],borderColor:"orange",yAxisID:"y"},
+  {label:"KTY",data:[],borderColor:"red",yAxisID:"y"},
+  {label:"Hum",data:[],borderColor:"blue",yAxisID:"y1"},
+  {label:"CO2",data:[],borderColor:"green",yAxisID:"y1"}
+ ]},
  options:{
   scales:{
    y:{position:"left"},
@@ -151,76 +165,98 @@ let roomChart=new Chart(document.getElementById("roomChart"),{
  }
 });
 
-// CLEAR GRAPH
+// RESET CHART
 function clearChart(){
- roomChart.data.labels=[];
- roomChart.data.datasets.forEach(ds=>ds.data=[]);
- roomChart.update();
+ chart.data.labels=[];
+ chart.data.datasets.forEach(d=>d.data=[]);
+ chart.update();
 }
 
 // LOAD
 async function load(){
 
- if(demoMode) return;
-
  let d=await (await fetch(url)).json();
 
- temp.innerText=d.temp;
- kty.innerText=d.kty;
- hum.innerText=d.hum;
- co2.innerText=d.co2;
+ // ESP STATUS
+ let s=d.status||{};
+ let diff=(Date.now()-s.heartbeat)/1000;
 
- updateAmpel(d.co2);
+ if(diff<10){
+  espStatus.style.background="green";
+  espText.innerText="Verbunden";
+ }else{
+  espStatus.style.background="red";
+  espText.innerText="Offline";
+ }
 
+ wifi.innerText=s.rssi+" dBm";
+ volt.innerText=(s.voltage||0).toFixed(2);
+
+ // MODE
+ let mode=d.mode||"live";
+ let v=(mode==="demo")?{
+  temp:d.demo.temp,
+  kty:d.demo.temp+2,
+  hum:d.demo.hum,
+  co2:d.demo.co2
+ }:d.data;
+
+ temp.innerText=v.temp;
+ kty.innerText=v.kty;
+ hum.innerText=v.hum;
+ co2.innerText=v.co2;
+
+ updateAmpel(v.co2);
+
+ // CHART
+ let t=new Date().toLocaleTimeString();
+ chart.data.labels.push(t);
+ chart.data.datasets[0].data.push(v.temp);
+ chart.data.datasets[1].data.push(v.kty);
+ chart.data.datasets[2].data.push(v.hum);
+ chart.data.datasets[3].data.push(v.co2);
+
+ if(chart.data.labels.length>20){
+  chart.data.labels.shift();
+  chart.data.datasets.forEach(ds=>ds.data.shift());
+ }
+
+ chart.update();
+
+ // HANDOUT
  if(d.handout) handoutLink.href=d.handout;
 
- checkAlarm(d);
+ checkAlarm(d,v.co2);
+}
 
- let t=new Date().toLocaleTimeString();
-
- roomChart.data.labels.push(t);
- roomChart.data.datasets[0].data.push(d.temp);
- roomChart.data.datasets[1].data.push(d.kty);
- roomChart.data.datasets[2].data.push(d.hum);
- roomChart.data.datasets[3].data.push(d.co2);
-
- roomChart.update();
+// AMPEL
+function updateAmpel(c){
+ if(c<800){ampel.style.background="green";ampelText.innerText="Gut";}
+ else if(c<1200){ampel.style.background="orange";ampelText.innerText="Mittel";}
+ else{ampel.style.background="red";ampelText.innerText="Lüften!";}
 }
 
 // DEMO
 function startDemo(){
- demoMode=true;
+ fetch(url,{
+  method:"PATCH",
+  body:JSON.stringify({
+    mode:"demo",
+    demo:{
+      temp:+tempSlider.value,
+      hum:+humSlider.value,
+      co2:+co2Slider.value,
+      weatherTemp:+weatherSlider.value,
+      weatherType:weatherType.value
+    }
+  })
+ });
  clearChart();
-
- demo=setInterval(()=>{
-  let t=20+Math.random()*5;
-  let h=40+Math.random()*20;
-  let c=400+Math.random()*1200;
-
-  temp.innerText=t;
-  kty.innerText=t+2;
-  hum.innerText=h;
-  co2.innerText=c;
-
-  updateAmpel(c);
-
-  let time=new Date().toLocaleTimeString();
-
-  roomChart.data.labels.push(time);
-  roomChart.data.datasets[0].data.push(t);
-  roomChart.data.datasets[1].data.push(t+2);
-  roomChart.data.datasets[2].data.push(h);
-  roomChart.data.datasets[3].data.push(c);
-
-  roomChart.update();
-
- },1000);
 }
 
 // LIVE
 function goLive(){
- demoMode=false;
- clearInterval(demo);
+ fetch(url,{method:"PATCH",body:JSON.stringify({mode:"live"})});
  clearChart();
 }
 
@@ -229,39 +265,52 @@ function setCity(){cityName=cityInput.value;}
 
 async function loadWeather(){
 
- let d=await (await fetch(
-  `https://api.openweathermap.org/data/2.5/forecast?q=${cityName}&appid=${apiKey}&units=metric`
- )).json();
+ let d=await (await fetch(url)).json();
 
- city.innerText="📍 "+d.city.name;
+ if(d.mode==="demo"){
+  let w=d.demo.weatherType;
+  let t=d.demo.weatherTemp;
 
- let w=d.list[0].weather[0].main;
- let t=d.list[0].main.temp;
+  let emoji="☁️";
+  if(w==="Clear") emoji="☀️";
+  if(w==="Rain") emoji="🌧️";
+  if(w==="Thunderstorm") emoji="⛈️";
+  if(w==="Snow") emoji="❄️";
+  if(w==="Ash") emoji="🌋";
+
+  city.innerText="📍 Demo";
+  wNow.innerText=emoji+" "+t+"°C";
+  return;
+ }
+
+ let res=await fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${cityName}&appid=${apiKey}&units=metric`);
+ let w=await res.json();
+
+ let type=w.list[0].weather[0].main;
+ let t=w.list[0].main.temp;
 
  let emoji="☁️";
+ if(type.includes("Clear")) emoji="☀️";
+ else if(type.includes("Rain")) emoji="🌧️";
+ else if(type.includes("Thunderstorm")) emoji="⛈️";
+ else if(type.includes("Snow")) emoji="❄️";
+ else if(type.includes("Mist")) emoji="🌫️";
 
- if(w.includes("Clear")) emoji="☀️";
- else if(w.includes("Cloud")) emoji="☁️";
- else if(w.includes("Rain")) emoji="🌧️";
- else if(w.includes("Thunderstorm")) emoji="⛈️";
- else if(w.includes("Snow")) emoji="❄️";
- else if(w.includes("Mist")) emoji="🌫️";
- else if(w.includes("Ash")) emoji="🌋";
-
+ city.innerText="📍 "+w.city.name;
  wNow.innerText=emoji+" "+t.toFixed(1)+"°C";
- w1.innerText="+1h: "+d.list[1].main.temp.toFixed(1);
- w2.innerText="+2h: "+d.list[2].main.temp.toFixed(1);
 
- checkWeatherAlarm(w);
+ if(type.includes("Rain")||type.includes("Ash")){
+  alert("🌧️ Fenster zu!");
+ }
 }
 
-// ALARM SYSTEM
+// ALARM
 function saveAlarm(){
  fetch(url,{
   method:"PATCH",
   body:JSON.stringify({
-   alarmMode:alarmMode.value,
-   alarmTime:Date.now()
+    alarmMode:alarmMode.value,
+    alarmTime:Date.now()
   })
  });
 }
@@ -271,22 +320,12 @@ function checkAlarmAllowed(d){
  if(d.alarmMode==="off") return false;
 
  let h=Number(d.alarmMode);
- let diff=(Date.now()- (d.alarmTime||0))/(1000*60*60);
-
- return diff>h;
+ return ((Date.now()-d.alarmTime)/(1000*60*60))>h;
 }
 
-function checkAlarm(d){
- if(checkAlarmAllowed(d)){
-  if(d.co2>1200){
-   alert("❗ Lüften! Fenster auf!");
-  }
- }
-}
-
-function checkWeatherAlarm(w){
- if(w.includes("Rain")||w.includes("Ash")){
-  alert("🌧️ Fenster zu!");
+function checkAlarm(d,c){
+ if(checkAlarmAllowed(d)&&c>1200){
+  alert("❗ Lüften!");
  }
 }
 
