@@ -12,7 +12,6 @@ body{font-family:Arial;background:#111;color:white;text-align:center;margin:0}
 button{padding:12px;font-size:16px;width:90%;margin:5px;border-radius:10px;border:none}
 .value{font-size:20px;margin:5px}
 .ampel{width:70px;height:70px;border-radius:50%;margin:auto}
- /* 🔥 NEU: kleiner ESP Status */
 .esp{width:25px;height:25px;border-radius:50%;margin:auto;}
 input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 </style>
@@ -63,24 +62,19 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 <button onclick="setCity()">Speichern</button>
 
 <p id="city"></p>
-
 <p>Jetzt: <span id="wNow"></span></p>
 <p>+1h: <span id="w1"></span></p>
 <p>+2h: <span id="w2"></span></p>
 <p>Morgen 07:00: <span id="w7"></span></p>
-
 </div>
 
 <div id="handout" class="card" style="display:none">
 <h2>📄 Handout</h2>
-
 <button onclick="openPreview()">👁️ Vorschau</button>
 <button onclick="downloadHandout()">📥 Download</button>
-
 </div>
 
 <div id="settings" class="card" style="display:none">
-
 <h2>Admin</h2>
 
 <h3>🎮 Demo</h3>
@@ -133,6 +127,8 @@ let urlRoot="https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase
 let apiKey="e733d08921989a3920c3e85507388b6e";
 let cityName="Worms";
 
+let handoutURL="";
+
 // LOGIN
 function loginAdmin(){
  if(pw.value==="12345"){
@@ -173,17 +169,11 @@ let chart=new Chart(roomChart,{
 
 // LOAD
 async function load(){
-
- // 🔥 DATA (Sensoren)
  let d=await (await fetch(urlData)).json();
-
- // 🔥 ROOT (handout etc.)
  let root=await (await fetch(urlRoot)).json();
 
- // 👉 HANDOUT FIX
  setHandout(root);
 
- // STATUS
  let s=root.status||{};
  let diff=(Date.now()-s.heartbeat)/1000;
 
@@ -209,7 +199,6 @@ async function load(){
 
  updateAmpel(v.co2);
 
- // CHART
  let t=new Date().toLocaleTimeString();
 
  chart.data.labels.push(t);
@@ -237,7 +226,7 @@ function updateAmpel(c){
 
 // DEMO
 function startDemo(){
- fetch(url,{
+ fetch(urlRoot,{
   method:"PATCH",
   body:JSON.stringify({
     mode:"demo",
@@ -257,133 +246,30 @@ function startDemo(){
 
 // LIVE
 function goLive(){
- fetch(url,{method:"PATCH",body:JSON.stringify({mode:"live"})});
+ fetch(urlRoot,{method:"PATCH",body:JSON.stringify({mode:"live"})});
  chart.data.labels=[];
  chart.data.datasets.forEach(ds=>ds.data=[]);
 }
 
-// WETTER
-function setCity(){cityName=cityInput.value;}
-
-async function loadWeather(){
-
- let d=await (await fetch(url)).json();
-
- if(d.mode==="demo"){
-  let w=d.demo.weatherType;
-  let t=d.demo.weatherTemp;
-
-  let e="☁️";
-  if(w==="Clear") e="☀️";
-  if(w==="Rain") e="🌧️";
-  if(w==="Thunderstorm") e="⛈️";
-  if(w==="Snow") e="❄️";
-  if(w==="Ash") e="🌋";
-
-  city.innerText="📍 Demo";
-
-  wNow.innerText=e+" "+t+"°C";
-  w1.innerText=e+" "+(t+1)+"°C";
-  w2.innerText=e+" "+(t+2)+"°C";
-  w7.innerText=e+" "+(t+3)+"°C";
-
-  return;
- }
-
- let res=await fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${cityName}&appid=${apiKey}&units=metric`);
- let w=await res.json();
-
- city.innerText="📍 "+w.city.name;
-
- function getEmoji(type){
-  if(type.includes("Clear")) return "☀️";
-  if(type.includes("Rain")) return "🌧️";
-  if(type.includes("Thunderstorm")) return "⛈️";
-  if(type.includes("Snow")) return "❄️";
-  if(type.includes("Mist")) return "🌫️";
-  return "☁️";
- }
-
- let now=w.list[0];
- let h1=w.list[1];
- let h2=w.list[2];
-
- // morgen 7 Uhr suchen
- let tomorrow7 = w.list.find(x=>{
-  let d=new Date(x.dt*1000);
-  return d.getHours()===7;
- });
-
- wNow.innerText=getEmoji(now.weather[0].main)+" "+now.main.temp.toFixed(1)+"°C";
- w1.innerText=getEmoji(h1.weather[0].main)+" "+h1.main.temp.toFixed(1)+"°C";
- w2.innerText=getEmoji(h2.weather[0].main)+" "+h2.main.temp.toFixed(1)+"°C";
-
- if(tomorrow7){
-  w7.innerText=getEmoji(tomorrow7.weather[0].main)+" "+tomorrow7.main.temp.toFixed(1)+"°C";
- }
-
- if(now.weather[0].main.includes("Rain")||now.weather[0].main.includes("Ash")){
-  alert("🌧️ Fenster zu!");
- }
-}
-
-// ALARM
-function saveAlarm(){
- fetch(url,{
-  method:"PATCH",
-  body:JSON.stringify({
-    alarmMode:alarmMode.value,
-    alarmTime:Date.now()
-  })
- });
-}
-
-function checkAlarmAllowed(d){
- if(!d.alarmMode||d.alarmMode==="on") return true;
- if(d.alarmMode==="off") return false;
- let h=Number(d.alarmMode);
- return ((Date.now()-d.alarmTime)/(1000*60*60))>h;
-}
-
-function checkAlarm(d,c){
- if(checkAlarmAllowed(d)&&c>1200) alert("❗ Lüften!");
-}
-
- let handoutURL = "";
-
-// aus Firebase laden
+// HANDOUT
 function setHandout(d){
-
- console.log("HANDOUT CHECK:", d.handout);
-
  if(d.handout){
-  handoutURL = d.handout;
- } else {
-  console.log("❌ KEIN HANDOUT!");
- }
-
-
-// Vorschau öffnen
-function openPreview(){
- if(handoutURL){
-  window.open(handoutURL, "_blank");
- } else {
-  alert("Kein Handout vorhanden");
+  handoutURL = d.handout.replace(/"/g,"").trim();
  }
 }
 
-// Download erzwingen
+function openPreview(){
+ if(handoutURL) window.open(handoutURL,"_blank");
+ else alert("Kein Handout vorhanden");
+}
+
 function downloadHandout(){
- if(handoutURL){
-  window.open(handoutURL, "_blank");
- } else {
-  alert("Kein Handout vorhanden");
- }
+ if(handoutURL) window.open(handoutURL,"_blank");
+ else alert("Kein Handout vorhanden");
 }
 
 // LOOP
 setInterval(load,3000);
-setInterval(loadWeather,10000);
 
 </script>
 
