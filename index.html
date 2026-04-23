@@ -106,15 +106,9 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 <button onclick="startDemo()">🎮 Demo Start</button>
 <button onclick="goLive()">📡 Live</button>
 
-<h3>🔔 Alarm</h3>
-<select id="alarmMode">
-<option value="on">AN</option>
-<option value="1">Pause 1h</option>
-<option value="6">Pause 6h</option>
-<option value="24">Pause 24h</option>
-<option value="off">AUS</option>
-</select>
-<button onclick="saveAlarm()">Speichern</button>
+<h3>⏱️ Umschaltzeit (ms)</h3>
+<input id="switchInput" type="number" value="10000">
+<button onclick="saveSwitch()">Speichern</button>
 
 </div>
 
@@ -122,12 +116,16 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 
 <script>
 
+// CONFIG
 let urlData="https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app/data.json";
 let urlRoot="https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app/.json";
-let apiKey="e733d08921989a3920c3e85507388b6e";
-let cityName="Worms";
 
-let handoutURL="";
+let apiKey="e733d08921989a3920c3e85507388b6e";
+let cityName=localStorage.getItem("city")||"Worms";
+
+let switchTime=parseInt(localStorage.getItem("switchTime"))||10000;
+let currentScreen=0;
+let displayLock=false;
 
 // LOGIN
 function loginAdmin(){
@@ -146,6 +144,13 @@ function loginSchueler(){
 function show(id){
  document.querySelectorAll(".card").forEach(x=>x.style.display="none");
  document.getElementById(id).style.display="block";
+}
+
+// AUTO SWITCH
+function autoSwitch(){
+ let screens=["raum","wetter","handout"];
+ currentScreen=(currentScreen+1)%screens.length;
+ show(screens[currentScreen]);
 }
 
 // SLIDER
@@ -169,52 +174,93 @@ let chart=new Chart(roomChart,{
 
 // LOAD
 async function load(){
- let d=await (await fetch(urlData)).json();
- let root=await (await fetch(urlRoot)).json();
+ try{
+  let d=await (await fetch(urlData)).json();
+  let root=await (await fetch(urlRoot)).json();
 
- setHandout(root);
+  setHandout(root);
 
- let s=root.status||{};
- let diff=(Date.now()-s.heartbeat)/1000;
+  let s=root.status||{};
+  let diff=(Date.now()-s.heartbeat)/1000;
 
- espStatus.style.background=diff<10?"green":"red";
- espText.innerText=diff<10?"Online":"Offline";
+  espStatus.style.background=diff<10?"green":"red";
+  espText.innerText=diff<10?"Online":"Offline";
 
- wifi.innerText=s.rssi||"--";
- volt.innerText=(s.voltage||0).toFixed(2);
+  wifi.innerText=s.rssi||"--";
+  volt.innerText=(s.voltage||0).toFixed(2);
 
- let mode=root.mode||"live";
+  let mode=root.mode||"live";
 
- let v=(mode==="demo")?{
-  temp:root.demo.temp,
-  kty:root.demo.kty,
-  hum:root.demo.hum,
-  co2:root.demo.co2
- }:d;
+  let v=(mode==="demo")?{
+   temp:root.demo.temp,
+   kty:root.demo.kty,
+   hum:root.demo.hum,
+   co2:root.demo.co2
+  }:d;
 
- temp.innerText=v.temp;
- kty.innerText=v.kty;
- hum.innerText=v.hum;
- co2.innerText=v.co2;
+  temp.innerText=v.temp;
+  kty.innerText=v.kty;
+  hum.innerText=v.hum;
+  co2.innerText=v.co2;
 
- updateAmpel(v.co2);
+  updateAmpel(v.co2);
+  checkTempAlarm(v.temp);
 
- let t=new Date().toLocaleTimeString();
+  let t=new Date().toLocaleTimeString();
 
- chart.data.labels.push(t);
- chart.data.datasets[0].data.push(v.temp);
- chart.data.datasets[1].data.push(v.kty);
- chart.data.datasets[2].data.push(v.hum);
- chart.data.datasets[3].data.push(v.co2);
+  chart.data.labels.push(t);
+  chart.data.datasets[0].data.push(v.temp);
+  chart.data.datasets[1].data.push(v.kty);
+  chart.data.datasets[2].data.push(v.hum);
+  chart.data.datasets[3].data.push(v.co2);
 
- if(chart.data.labels.length>20){
-  chart.data.labels.shift();
-  chart.data.datasets.forEach(ds=>ds.data.shift());
+  if(chart.data.labels.length>20){
+   chart.data.labels.shift();
+   chart.data.datasets.forEach(ds=>ds.data.shift());
+  }
+
+  chart.update();
+
+  loadWeather();
+
+ }catch(e){
+  console.log("LOAD ERROR",e);
  }
+}
 
- chart.update();
+// WETTER
+async function loadWeather(){
+ try{
+  let url=`https://api.openweathermap.org/data/2.5/forecast?q=${cityName}&appid=${apiKey}&units=metric&lang=de`;
+  let res=await fetch(url);
+  let data=await res.json();
 
- checkAlarm(root,v.co2);
+  if(!data.list) return;
+
+  wNow.innerText=data.list[0].main.temp.toFixed(1)+"°C";
+  w1.innerText=data.list[1].main.temp.toFixed(1)+"°C";
+  w2.innerText=data.list[2].main.temp.toFixed(1)+"°C";
+
+  let forecast=data.list.find(x=>{
+    let d=new Date(x.dt*1000);
+    return d.getHours()==6;
+  });
+
+  if(forecast){
+   w7.innerText=forecast.main.temp.toFixed(1)+"°C";
+  }
+
+  city.innerText=cityName;
+
+ }catch(e){
+  console.log("Wetter Fehler",e);
+ }
+}
+
+// CITY
+function setCity(){
+ cityName=cityInput.value;
+ localStorage.setItem("city",cityName);
 }
 
 // AMPEL
@@ -222,6 +268,58 @@ function updateAmpel(c){
  if(c<800){ampel.style.background="green";ampelText.innerText="Gut";}
  else if(c<1200){ampel.style.background="orange";ampelText.innerText="Mittel";}
  else{ampel.style.background="red";ampelText.innerText="Lüften!";}
+}
+
+// TEMP ALARM
+function checkTempAlarm(t){
+ if(displayLock) return;
+
+ if(t>=30){
+  showAlert("🔥 EXTREM HEISS!");
+ }
+ else if(t<=-1){
+  showAlert("❄️ EXTREM KALT!");
+ }
+}
+
+// ALERT
+function showAlert(text){
+ displayLock=true;
+
+ let box=document.createElement("div");
+ box.innerText=text;
+ box.style.position="fixed";
+ box.style.top="20px";
+ box.style.left="50%";
+ box.style.transform="translateX(-50%)";
+ box.style.background="red";
+ box.style.padding="20px";
+ box.style.borderRadius="15px";
+ box.style.fontSize="20px";
+ box.style.zIndex="9999";
+
+ document.body.appendChild(box);
+
+ setTimeout(()=>{
+  box.remove();
+  displayLock=false;
+ },10000);
+}
+
+// HANDOUT
+let handoutURL="";
+function setHandout(d){
+ if(d.handout){
+  handoutURL=d.handout.replace(/"/g,"").trim();
+ }
+}
+function openPreview(){
+ if(handoutURL) window.open(handoutURL,"_blank");
+ else alert("Kein Handout vorhanden");
+}
+function downloadHandout(){
+ if(handoutURL) window.open(handoutURL,"_blank");
+ else alert("Kein Handout vorhanden");
 }
 
 // DEMO
@@ -234,42 +332,27 @@ function startDemo(){
       temp:+tempSlider.value,
       kty:+ktySlider.value,
       hum:+humSlider.value,
-      co2:+co2Slider.value,
-      weatherTemp:+weatherSlider.value,
-      weatherType:weatherType.value
+      co2:+co2Slider.value
     }
   })
  });
- chart.data.labels=[];
- chart.data.datasets.forEach(ds=>ds.data=[]);
 }
 
 // LIVE
 function goLive(){
  fetch(urlRoot,{method:"PATCH",body:JSON.stringify({mode:"live"})});
- chart.data.labels=[];
- chart.data.datasets.forEach(ds=>ds.data=[]);
 }
 
-// HANDOUT
-function setHandout(d){
- if(d.handout){
-  handoutURL = d.handout.replace(/"/g,"").trim();
- }
-}
-
-function openPreview(){
- if(handoutURL) window.open(handoutURL,"_blank");
- else alert("Kein Handout vorhanden");
-}
-
-function downloadHandout(){
- if(handoutURL) window.open(handoutURL,"_blank");
- else alert("Kein Handout vorhanden");
+// SWITCH SAVE
+function saveSwitch(){
+ switchTime=+switchInput.value;
+ localStorage.setItem("switchTime",switchTime);
+ location.reload();
 }
 
 // LOOP
 setInterval(load,3000);
+setInterval(autoSwitch,switchTime);
 
 </script>
 
