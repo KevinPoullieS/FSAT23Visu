@@ -45,10 +45,11 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 
 <button onclick="show('raum')">🏠 Raum</button>
 <button onclick="show('wetter')">🌦️ Wetter</button>
-<button onclick="show('handout')">📄 Handout</button>
 <button onclick="show('settings')" id="adminBtn" style="display:none">⚙️ Admin</button>
 
+<!-- RAUM -->
 <div id="raum" class="card">
+
 <h3>ESP Status</h3>
 <div id="espStatus" class="esp"></div>
 <p id="espText"></p>
@@ -61,8 +62,10 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 <div class="value">🫁 <span id="co2">--</span> ppm</div>
 
 <canvas id="chart"></canvas>
+
 </div>
 
+<!-- WETTER -->
 <div id="wetter" class="card" style="display:none">
 <input id="cityInput" placeholder="Ort">
 <button onclick="setCity()">Speichern</button>
@@ -72,6 +75,7 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 <p>+2h: <span id="w2"></span></p>
 </div>
 
+<!-- SETTINGS -->
 <div id="settings" class="card" style="display:none">
 
 <h3>🎮 Demo</h3>
@@ -108,21 +112,47 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 
 <script>
 
-let url="https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app/.json";
-let apiKey="e733d08921989a3920c3e85507388b6e";
+const url = "https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app/.json";
+const apiKey = "e733d08921989a3920c3e85507388b6e";
 
-// 🔥 Ort speichern
 let cityName = localStorage.getItem("city") || "Worms";
 
-function setCity(){
- let val = cityInput.value.trim();
- if(!val) return alert("Ort eingeben");
- cityName = val;
- localStorage.setItem("city", cityName);
- loadWeather();
+// ---------- LOGIN ----------
+function loginSchueler(){
+ document.getElementById("login").style.display="none";
+ document.getElementById("app").style.display="block";
 }
 
-// 🔥 DEMO LIVE UPDATE
+function loginAdmin(){
+ let pw = document.getElementById("pw").value;
+ if(pw==="12345"){
+  document.getElementById("login").style.display="none";
+  document.getElementById("app").style.display="block";
+  document.getElementById("adminBtn").style.display="inline-block";
+ } else alert("Falsches Passwort");
+}
+
+// ---------- NAV ----------
+function show(id){
+ document.querySelectorAll(".card").forEach(x=>x.style.display="none");
+ document.getElementById(id).style.display="block";
+}
+
+// ---------- CHART ----------
+let chart;
+window.onload = () => {
+ chart = new Chart(document.getElementById("chart"),{
+  type:"line",
+  data:{labels:[],datasets:[
+   {label:"Temp",data:[],borderColor:"orange"},
+   {label:"KTY",data:[],borderColor:"red"},
+   {label:"Hum",data:[],borderColor:"blue"},
+   {label:"CO2",data:[],borderColor:"green"}
+  ]}
+ });
+};
+
+// ---------- DEMO SYNC ----------
 function updateDemo(){
  fetch(url,{
   method:"PATCH",
@@ -140,7 +170,7 @@ function updateDemo(){
  });
 }
 
-// 🔥 SLIDER VERBINDEN
+// Slider verbinden
 [tempSlider,ktySlider,humSlider,co2Slider,weatherSlider].forEach(s=>{
  s.oninput=()=>{
   tempVal.innerText=tempSlider.value;
@@ -154,72 +184,63 @@ function updateDemo(){
 
 weatherType.onchange=updateDemo;
 
-// 🔥 CHART
-let chart=new Chart(document.getElementById("chart"),{
- type:"line",
- data:{labels:[],datasets:[
-  {label:"Temp",data:[],borderColor:"orange"},
-  {label:"KTY",data:[],borderColor:"red"},
-  {label:"Hum",data:[],borderColor:"blue"},
-  {label:"CO2",data:[],borderColor:"green"}
- ]}
-});
-
-// 🔥 LOAD
+// ---------- LOAD ----------
 async function load(){
- let d=await (await fetch(url)).json();
+ let d = await (await fetch(url)).json();
 
  let s=d.status||{};
- espStatus.style.background=(Date.now()-s.heartbeat<10000)?"green":"red";
- wifi.innerText=s.rssi||"--";
- volt.innerText=s.voltage||"--";
+ let diff=Date.now()-s.heartbeat;
+
+ document.getElementById("espStatus").style.background=(diff<10000)?"green":"red";
+ document.getElementById("espText").innerText=(diff<10000)?"Online":"Offline";
+
+ wifi.innerText=s.rssi??"--";
+ volt.innerText=s.voltage??"--";
 
  let v=(d.mode==="demo")?d.demo:d.data;
-
  if(!v) return;
 
- temp.innerText=v.temp;
- kty.innerText=v.kty;
- hum.innerText=v.hum;
- co2.innerText=v.co2;
+ temp.innerText=v.temp??"--";
+ kty.innerText=v.kty??"--";
+ hum.innerText=v.hum??"--";
+ co2.innerText=v.co2??"--";
 
- chart.data.labels.push(new Date().toLocaleTimeString());
- chart.data.datasets[0].data.push(v.temp||0);
- chart.data.datasets[1].data.push(v.kty||0);
- chart.data.datasets[2].data.push(v.hum||0);
- chart.data.datasets[3].data.push(v.co2||0);
+ if(chart){
+  let t=new Date().toLocaleTimeString();
+  chart.data.labels.push(t);
+  chart.data.datasets[0].data.push(v.temp||0);
+  chart.data.datasets[1].data.push(v.kty||0);
+  chart.data.datasets[2].data.push(v.hum||0);
+  chart.data.datasets[3].data.push(v.co2||0);
 
- if(chart.data.labels.length>20){
-  chart.data.labels.shift();
-  chart.data.datasets.forEach(ds=>ds.data.shift());
+  if(chart.data.labels.length>20){
+   chart.data.labels.shift();
+   chart.data.datasets.forEach(ds=>ds.data.shift());
+  }
+
+  chart.update();
  }
-
- chart.update();
 }
 
-// 🔥 WETTER
+// ---------- WETTER ----------
 function emoji(t){
- if(t.includes("Clear"))return"☀️";
- if(t.includes("Rain"))return"🌧️";
- if(t.includes("Snow"))return"❄️";
- if(t.includes("Thunderstorm"))return"⛈️";
- if(t.includes("Ash"))return"🌋";
- return"☁️";
+ if(t.includes("Clear")) return "☀️";
+ if(t.includes("Rain")) return "🌧️";
+ if(t.includes("Snow")) return "❄️";
+ if(t.includes("Thunderstorm")) return "⛈️";
+ if(t.includes("Ash")) return "🌋";
+ return "☁️";
+}
+
+function setCity(){
+ let val=cityInput.value.trim();
+ if(!val) return;
+ cityName=val;
+ localStorage.setItem("city", cityName);
+ loadWeather();
 }
 
 async function loadWeather(){
- let d=await (await fetch(url)).json();
-
- if(d.mode==="demo"){
-  city.innerText="📍 Demo";
-  let t=d.demo.weatherTemp;
-  let e=emoji(d.demo.weatherType);
-  wNow.innerText=e+" "+t+"°C";
-  w1.innerText=e+" "+(t+1)+"°C";
-  w2.innerText=e+" "+(t+2)+"°C";
-  return;
- }
-
  let res=await fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${cityName}&appid=${apiKey}&units=metric`);
  let w=await res.json();
 
@@ -232,11 +253,11 @@ async function loadWeather(){
  w2.innerText=emoji(w.list[2].weather[0].main)+" "+w.list[2].main.temp.toFixed(1)+"°C";
 }
 
-// 🔥 MODES
+// ---------- MODES ----------
 function startDemo(){updateDemo();}
 function goLive(){fetch(url,{method:"PATCH",body:JSON.stringify({mode:"live"})});}
 
-// 🔥 LOOP
+// ---------- LOOP ----------
 setInterval(load,3000);
 setInterval(loadWeather,10000);
 
