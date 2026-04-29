@@ -15,7 +15,6 @@ button{padding:12px;font-size:16px;width:90%;margin:5px;border-radius:10px;borde
 .esp{width:25px;height:25px;border-radius:50%;margin:auto;}
 input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 
-/* 🔴 ALARM BOX */
 #alarmBox{
  position:fixed;
  top:20px;
@@ -76,7 +75,6 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 <div id="wetter" class="card" style="display:none">
 <input id="cityInput" placeholder="Ort">
 <button onclick="setCity()">Speichern</button>
-
 <p id="city"></p>
 <p>Jetzt: <span id="wNow"></span></p>
 <p>+1h: <span id="w1"></span></p>
@@ -143,6 +141,7 @@ let url="https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app
 let apiKey="e733d08921989a3920c3e85507388b6e";
 let cityName="Worms";
 let handoutURL="";
+let outsideTemp=null;
 
 // ---------- LOGIN ----------
 function loginAdmin(){if(pw.value==="12345"){login.style.display="none";app.style.display="block";adminBtn.style.display="block";}}
@@ -202,14 +201,6 @@ function checkAlarmAllowed(d){
 async function load(){
  let d=await (await fetch(url)).json();
 
- let s=d.status||{};
- let diff=(Date.now()-s.heartbeat)/1000;
-
- espStatus.style.background=diff<10?"green":"red";
- espText.innerText=diff<10?"Online":"Offline";
- wifi.innerText=s.rssi||"--";
- volt.innerText=s.voltage||"--";
-
  let v=(d.mode==="demo")?d.demo:d.data;
 
  temp.innerText=v?.temp||"--";
@@ -219,36 +210,47 @@ async function load(){
 
  updateAmpel(v?.co2);
 
- // ALARME
  if(checkAlarmAllowed(d)){
   if(v?.co2>1200) showAlarm("Lüften!");
-  if(v?.temp <= -1) showAlarm("❄️ Extrem kalt draußen!");
-  if(v?.temp >= 30) showAlarm("🔥 Extrem warm draußen!");
+  if(outsideTemp!==null){
+   if(outsideTemp<=-1) showAlarm("❄️ Extrem kalt draußen!");
+   if(outsideTemp>=30) showAlarm("🔥 Extrem warm draußen!");
+  }
  }
-
- // CHART
- let t=new Date().toLocaleTimeString();
- chart.data.labels.push(t);
- chart.data.datasets[0].data.push(v.temp);
- chart.data.datasets[1].data.push(v.kty);
- chart.data.datasets[2].data.push(v.hum);
- chart.data.datasets[3].data.push(v.co2);
-
- if(chart.data.labels.length>20){
-  chart.data.labels.shift();
-  chart.data.datasets.forEach(ds=>ds.data.shift());
- }
-
- chart.update();
 
  setHandout(d);
 }
 
-// ---------- AMPEL ----------
-function updateAmpel(c){
- if(c<800){ampel.style.background="green";ampelText.innerText="Gut";}
- else if(c<1200){ampel.style.background="orange";ampelText.innerText="Mittel";}
- else{ampel.style.background="red";ampelText.innerText="Lüften!";}
+// ---------- WETTER ----------
+async function loadWeather(){
+ let d=await (await fetch(url)).json();
+
+ if(d.mode==="demo"){
+  outsideTemp=d.demo.weatherTemp;
+  let e=getEmoji(d.demo.weatherType);
+
+  city.innerText="📍 Demo";
+  wNow.innerText=e+" "+outsideTemp+"°C";
+  w1.innerText=e+" "+(outsideTemp+1)+"°C";
+  w2.innerText=e+" "+(outsideTemp+2)+"°C";
+
+  return;
+ }
+
+ let res=await fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${cityName}&appid=${apiKey}&units=metric`);
+ let w=await res.json();
+
+ city.innerText="📍 "+w.city.name;
+
+ let now=w.list[0];
+ let h1=w.list[1];
+ let h2=w.list[2];
+
+ outsideTemp=now.main.temp;
+
+ wNow.innerText=getEmoji(now.weather[0].main)+" "+now.main.temp.toFixed(1)+"°C";
+ w1.innerText=getEmoji(h1.weather[0].main)+" "+h1.main.temp.toFixed(1)+"°C";
+ w2.innerText=getEmoji(h2.weather[0].main)+" "+h2.main.temp.toFixed(1)+"°C";
 }
 
 // ---------- DEMO ----------
@@ -275,60 +277,6 @@ function goLive(){
 function setHandout(d){ if(d.handout) handoutURL=d.handout;}
 function openPreview(){ if(handoutURL) window.open(handoutURL);}
 function downloadHandout(){ if(handoutURL) window.open(handoutURL);}
-
-// ---------- WETTER ----------
-function setCity(){cityName=cityInput.value;}
-
-async function loadWeather(){
-
- let d=await (await fetch(url)).json();
-
- if(d.mode==="demo"){
-  let e=getEmoji(d.demo.weatherType);
-  let t=d.demo.weatherTemp;
-
-  city.innerText="📍 Demo";
-  wNow.innerText=e+" "+t+"°C";
-  w1.innerText=e+" "+(t+1)+"°C";
-  w2.innerText=e+" "+(t+2)+"°C";
-
-  if(checkAlarmAllowed(d)){
-   if(d.demo.weatherType==="Snow") showAlarm("Schnee draußen!");
-   if(d.demo.weatherType==="Thunderstorm") showAlarm("Unwetter draußen!");
-   if(d.demo.weatherType==="Ash") showAlarm("Vulkanasche draußen!");
-  }
-
-  return;
- }
-
- let res=await fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${cityName}&appid=${apiKey}&units=metric`);
- let w=await res.json();
-
- city.innerText="📍 "+w.city.name;
-
- let now=w.list[0];
- let h1=w.list[1];
- let h2=w.list[2];
-
- wNow.innerText=getEmoji(now.weather[0].main)+" "+now.main.temp.toFixed(1)+"°C";
- w1.innerText=getEmoji(h1.weather[0].main)+" "+h1.main.temp.toFixed(1)+"°C";
- w2.innerText=getEmoji(h2.weather[0].main)+" "+h2.main.temp.toFixed(1)+"°C";
-
- if(checkAlarmAllowed(d)){
-  let type=now.weather[0].main;
-  if(type.includes("Snow")) showAlarm("Schnee draußen!");
-  if(type.includes("Thunderstorm")) showAlarm("Unwetter draußen!");
-  if(type.includes("Ash")) showAlarm("Vulkanasche draußen!");
- }
-}
-
-// ---------- SAVE ALARM ----------
-function saveAlarm(){
- fetch(url,{method:"PATCH",body:JSON.stringify({
-  alarmMode:alarmMode.value,
-  alarmTime:Date.now()
- })});
-}
 
 // ---------- LOOP ----------
 setInterval(load,3000);
