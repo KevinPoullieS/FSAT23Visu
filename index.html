@@ -30,6 +30,7 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 
 <button onclick="show('raum')">🏠 Raum</button>
 <button onclick="show('wetter')">🌦️ Wetter</button>
+<button onclick="show('handout')">📄 Handout</button>
 <button onclick="show('settings')" id="adminBtn" style="display:none">⚙️ Admin</button>
 
 <!-- RAUM -->
@@ -38,13 +39,13 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 <h3>ESP Status</h3>
 <div id="espStatus" class="esp"></div>
 <p id="espText"></p>
-<p>📶 <span id="wifi"></span></p>
-<p>🔋 <span id="volt"></span></p>
+<p>📶 <span id="wifi"></span> dBm</p>
+<p>🔋 <span id="volt"></span> V</p>
 
-<div class="value">🌡️ <span id="temp">--</span></div>
-<div class="value">🔥 <span id="kty">--</span></div>
-<div class="value">💧 <span id="hum">--</span></div>
-<div class="value">🫁 <span id="co2">--</span></div>
+<div class="value">🌡️ Temp: <span id="temp">--</span> °C</div>
+<div class="value">🔥 KTY: <span id="kty">--</span> °C</div>
+<div class="value">💧 Hum: <span id="hum">--</span> %</div>
+<div class="value">🫁 CO2: <span id="co2">--</span> ppm</div>
 
 <h3>🌬️ Luftqualitäts-Ampel</h3>
 <div id="ampel" class="ampel"></div>
@@ -58,11 +59,17 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 <div id="wetter" class="card" style="display:none">
 <input id="cityInput" placeholder="Ort">
 <button onclick="setCity()">Speichern</button>
-
 <p id="city"></p>
 <p>Jetzt: <span id="wNow"></span></p>
 <p>+1h: <span id="w1"></span></p>
 <p>+2h: <span id="w2"></span></p>
+</div>
+
+<!-- HANDOUT -->
+<div id="handout" class="card" style="display:none">
+<h2>📄 Handout</h2>
+<button onclick="openPreview()">👁️ Vorschau</button>
+<button onclick="downloadHandout()">📥 Download</button>
 </div>
 
 <!-- SETTINGS -->
@@ -70,19 +77,19 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 
 <h3>🎮 Demo</h3>
 
-<p>🌡️ Temp: <span id="tempVal">20</span></p>
+<p>🌡️ Temp: <span id="tempVal">20</span> °C</p>
 <input id="tempSlider" type="range" min="-5" max="50" value="20">
 
-<p>🔥 KTY: <span id="ktyVal">22</span></p>
+<p>🔥 KTY: <span id="ktyVal">22</span> °C</p>
 <input id="ktySlider" type="range" min="-5" max="60" value="22">
 
-<p>💧 Hum: <span id="humVal">50</span></p>
+<p>💧 Hum: <span id="humVal">50</span> %</p>
 <input id="humSlider" type="range" min="0" max="100" value="50">
 
-<p>🫁 CO2: <span id="co2Val">800</span></p>
+<p>🫁 CO2: <span id="co2Val">800</span> ppm</p>
 <input id="co2Slider" type="range" min="400" max="2000" value="800">
 
-<p>🌦️ Wetter: <span id="weatherVal">15</span></p>
+<p>🌦️ Wetter: <span id="weatherVal">15</span> °C</p>
 <input id="weatherSlider" type="range" min="-10" max="40" value="15">
 
 <select id="weatherType">
@@ -94,8 +101,18 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 <option>Wind</option>
 </select>
 
-<button onclick="startDemo()">Demo</button>
-<button onclick="goLive()">Live</button>
+<button onclick="startDemo()">🎮 Demo</button>
+<button onclick="goLive()">📡 Live</button>
+
+<h3>🔔 Alarm</h3>
+<select id="alarmMode">
+<option value="on">AN</option>
+<option value="1">Pause 1h</option>
+<option value="6">Pause 6h</option>
+<option value="24">Pause 24h</option>
+<option value="off">AUS</option>
+</select>
+<button onclick="saveAlarm()">Speichern</button>
 
 </div>
 
@@ -106,9 +123,10 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 let url="https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app/.json";
 let apiKey="e733d08921989a3920c3e85507388b6e";
 let cityName="Worms";
+let handoutURL="";
 
 // LOGIN
-function loginAdmin(){ if(pw.value==="12345"){login.style.display="none";app.style.display="block";adminBtn.style.display="block";}}
+function loginAdmin(){if(pw.value==="12345"){login.style.display="none";app.style.display="block";adminBtn.style.display="block";}}
 function loginSchueler(){login.style.display="none";app.style.display="block";}
 
 // NAV
@@ -128,10 +146,10 @@ weatherSlider.oninput=()=>weatherVal.innerText=weatherSlider.value;
 let chart=new Chart(document.getElementById("chart"),{
  type:"line",
  data:{labels:[],datasets:[
-  {label:"Temp",data:[],borderColor:"orange"},
-  {label:"KTY",data:[],borderColor:"red"},
-  {label:"Hum",data:[],borderColor:"blue"},
-  {label:"CO2",data:[],borderColor:"green"}
+  {label:"Temp °C",data:[],borderColor:"orange"},
+  {label:"KTY °C",data:[],borderColor:"red"},
+  {label:"Hum %",data:[],borderColor:"blue"},
+  {label:"CO2 ppm",data:[],borderColor:"green"}
  ]}
 });
 
@@ -169,6 +187,9 @@ async function load(){
  }
 
  chart.update();
+
+ checkAlarm(d,v?.co2);
+ setHandout(d);
 }
 
 // AMPEL
@@ -198,6 +219,13 @@ function goLive(){
  fetch(url,{method:"PATCH",body:JSON.stringify({mode:"live"})});
 }
 
+// HANDOUT
+function setHandout(d){
+ if(d.handout) handoutURL=d.handout;
+}
+function openPreview(){if(handoutURL) window.open(handoutURL);}
+function downloadHandout(){if(handoutURL) window.open(handoutURL);}
+
 // WETTER
 function setCity(){cityName=cityInput.value;}
 
@@ -220,6 +248,7 @@ async function loadWeather(){
   wNow.innerText=e+" "+t+"°C";
   w1.innerText=e+" "+(t+1)+"°C";
   w2.innerText=e+" "+(t+2)+"°C";
+
   return;
  }
 
@@ -228,9 +257,34 @@ async function loadWeather(){
 
  city.innerText="📍 "+w.city.name;
 
- wNow.innerText="☀️ "+w.list[0].main.temp.toFixed(1)+"°C";
- w1.innerText="☁️ "+w.list[1].main.temp.toFixed(1)+"°C";
+ let type=w.list[0].weather[0].main;
+
+ wNow.innerText="🌦️ "+w.list[0].main.temp.toFixed(1)+"°C";
+ w1.innerText="🌤️ "+w.list[1].main.temp.toFixed(1)+"°C";
  w2.innerText="🌧️ "+w.list[2].main.temp.toFixed(1)+"°C";
+
+ if(type.includes("Rain")) alert("🌧️ Fenster zu!");
+ if(type.includes("Snow")) alert("❄️ Schnee!");
+ if(type.includes("Thunderstorm")) alert("⛈️ Sturm!");
+}
+
+// ALARM
+function saveAlarm(){
+ fetch(url,{method:"PATCH",body:JSON.stringify({
+  alarmMode:alarmMode.value,
+  alarmTime:Date.now()
+ })});
+}
+
+function checkAlarmAllowed(d){
+ if(!d.alarmMode||d.alarmMode==="on") return true;
+ if(d.alarmMode==="off") return false;
+ let h=Number(d.alarmMode);
+ return ((Date.now()-d.alarmTime)/(1000*60*60))>h;
+}
+
+function checkAlarm(d,c){
+ if(checkAlarmAllowed(d)&&c>1200) alert("❗ Lüften!");
 }
 
 // LOOP
