@@ -137,8 +137,8 @@ canvas{
     <button onclick="setCity()">Speichern</button>
     <p id="city">📍 --</p>
     <p>Jetzt: <span id="wNow">--</span></p>
-    <p>+1h: <span id="w1">--</span></p>
-    <p>+2h: <span id="w2">--</span></p>
+    <p>+3h: <span id="w1">--</span></p>
+    <p>+6h: <span id="w2">--</span></p>
   </div>
 
   <div id="handout" class="card" style="display:none">
@@ -373,17 +373,17 @@ async function loadWeather() {
     modeCache = root?.mode || "live";
 
     if (modeCache === "demo" && root?.demo) {
-      outsideTemp = Number(root.demo.weatherTemp);
-      const e = weatherEmoji(root.demo.weatherType);
+      const demo = root.demo;
+      const e = weatherEmoji(demo.weatherType);
+      outsideTemp = Number(demo.weatherTemp);
 
       el("city").innerText = "📍 Demo";
-       el("wNow").innerText = weatherEmoji(now.weather[0].main) + " " + now.main.temp.toFixed(1) + "°C";
-
-      el("w1").innerText = weatherEmoji(h1.weather[0].main) + " " + h1.main.temp.toFixed(1) + "°C";
-      el("w2").innerText = weatherEmoji(h2.weather[0].main) + " " + h2.main.temp.toFixed(1) + "°C";
+      el("wNow").innerText = e + " " + outsideTemp.toFixed(1) + "°C";
+      el("w1").innerText = e + " " + (outsideTemp + 1).toFixed(1) + "°C";
+      el("w2").innerText = e + " " + (outsideTemp + 2).toFixed(1) + "°C";
 
       if (root.alarmMode !== "off") {
-        handleOutsideAlarms(root.demo.weatherType, outsideTemp);
+        handleOutsideAlarms(demo.weatherType, outsideTemp);
       }
       return;
     }
@@ -392,6 +392,7 @@ async function loadWeather() {
       `https://api.openweathermap.org/data/2.5/forecast?q=${encodeURIComponent(cityName)}&appid=${OPENWEATHER_KEY}&units=metric`
     );
     const w = await res.json();
+
     if (String(w.cod) !== "200") {
       console.log("Weather API Fehler:", w);
       return;
