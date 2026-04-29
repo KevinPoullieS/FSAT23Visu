@@ -1,97 +1,107 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <meta charset="UTF-8">
-  <title>CO2 PRO FINAL</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta charset="UTF-8">
+<title>CO2 PRO FINAL</title>
 
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
-  <style>
-    body {
-      font-family: Arial, sans-serif;
-      background: #111;
-      color: white;
-      text-align: center;
-      margin: 0;
-    }
+<style>
+body{
+  font-family:Arial,sans-serif;
+  background:#111;
+  color:white;
+  text-align:center;
+  margin:0;
+}
+.card{
+  background:#222;
+  padding:15px;
+  margin:10px;
+  border-radius:15px;
+}
+button{
+  padding:12px;
+  font-size:16px;
+  width:90%;
+  margin:5px;
+  border-radius:10px;
+  border:none;
+}
+.value{
+  font-size:20px;
+  margin:5px;
+}
+.ampel{
+  width:70px;
+  height:70px;
+  border-radius:50%;
+  margin:auto;
+  background:gray;
+}
+.esp{
+  width:25px;
+  height:25px;
+  border-radius:50%;
+  margin:auto;
+  background:gray;
+}
+input,select{
+  padding:10px;
+  border-radius:10px;
+  border:none;
+  width:80%;
+  margin:5px;
+}
+canvas{
+  background:#111;
+  border-radius:12px;
+  margin-top:10px;
+}
 
-    .card {
-      background: #222;
-      padding: 15px;
-      margin: 10px;
-      border-radius: 15px;
-    }
+/* Alarm-Queue */
+#alarmBox{
+  position:fixed;
+  top:20px;
+  left:50%;
+  transform:translateX(-50%);
+  z-index:9999;
+  display:flex;
+  flex-direction:column;
+  gap:10px;
+  align-items:center;
+  pointer-events:none;
+}
 
-    button {
-      padding: 12px;
-      font-size: 16px;
-      width: 90%;
-      margin: 5px;
-      border-radius: 10px;
-      border: none;
-    }
+.alarmItem{
+  background:red;
+  color:white;
+  padding:12px 18px;
+  border-radius:10px;
+  font-size:16px;
+  box-shadow:0 5px 15px rgba(0,0,0,0.4);
+  animation:fadeIn 0.25s ease;
+  pointer-events:none;
+  min-width:220px;
+  max-width:90vw;
+}
 
-    .value {
-      font-size: 20px;
-      margin: 5px;
-    }
+@keyframes fadeIn{
+  from{opacity:0;transform:translateY(-10px);}
+  to{opacity:1;transform:translateY(0);}
+}
 
-    .ampel {
-      width: 70px;
-      height: 70px;
-      border-radius: 50%;
-      margin: auto;
-      background: gray;
-    }
-
-    .esp {
-      width: 25px;
-      height: 25px;
-      border-radius: 50%;
-      margin: auto;
-      background: gray;
-    }
-
-    input, select {
-      padding: 10px;
-      border-radius: 10px;
-      border: none;
-      width: 80%;
-      margin: 5px;
-    }
-
-    #alarmBox {
-      position: fixed;
-      top: 20px;
-      left: 50%;
-      transform: translateX(-50%);
-      background: red;
-      color: white;
-      padding: 15px 20px;
-      border-radius: 10px;
-      display: none;
-      z-index: 9999;
-      font-size: 18px;
-      box-shadow: 0 6px 20px rgba(0,0,0,0.35);
-    }
-
-    .small {
-      font-size: 14px;
-      opacity: 0.8;
-    }
-
-    canvas {
-      background: #111;
-      border-radius: 12px;
-      margin-top: 10px;
-    }
-  </style>
+.small{
+  font-size:14px;
+  opacity:0.8;
+}
+</style>
 </head>
 
 <body>
 
-<div id="alarmBox">⚠️ Alarm</div>
+<div id="alarmBox"></div>
 
 <div id="login">
   <h2>Login</h2>
@@ -126,7 +136,7 @@
 
     <h3>🌬️ Luftqualitäts-Ampel</h3>
     <div id="ampel" class="ampel"></div>
-    <p id="ampelText">--</p>
+    <p id="ampelText"></p>
 
     <canvas id="chart" height="180"></canvas>
   </div>
@@ -144,7 +154,7 @@
     <p>+2h: <span id="w2">--</span></p>
   </div>
 
-  <!-- HANOUT -->
+  <!-- HANDOUT -->
   <div id="handout" class="card" style="display:none">
     <h2>📄 Handout</h2>
     <button onclick="openPreview()">👁️ Vorschau</button>
@@ -202,33 +212,39 @@
 </div>
 
 <script>
-/* =========================
-   CONFIG
-========================= */
 const FIREBASE_URL = "https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app/.json";
 const OPENWEATHER_KEY = "e733d08921989a3920c3e85507388b6e";
+
 let cityName = localStorage.getItem("city") || "Worms";
 let handoutURL = "";
 let outsideTemp = null;
 let modeCache = "live";
 let alarmHideUntil = 0;
+let chart = null;
+
+/* =========================
+   DOM HELPERS
+========================= */
+function el(id) {
+  return document.getElementById(id);
+}
 
 /* =========================
    LOGIN
 ========================= */
 function loginSchueler() {
-  document.getElementById("login").style.display = "none";
-  document.getElementById("app").style.display = "block";
+  el("login").style.display = "none";
+  el("app").style.display = "block";
 }
 
 function loginAdmin() {
-  const pw = document.getElementById("pw").value;
+  const pw = el("pw").value;
   if (pw === "12345") {
-    document.getElementById("login").style.display = "none";
-    document.getElementById("app").style.display = "block";
-    document.getElementById("adminBtn").style.display = "inline-block";
+    el("login").style.display = "none";
+    el("app").style.display = "block";
+    el("adminBtn").style.display = "inline-block";
   } else {
-    document.getElementById("error").innerText = "Falsches Passwort";
+    el("error").innerText = "Falsches Passwort";
   }
 }
 
@@ -237,105 +253,26 @@ function loginAdmin() {
 ========================= */
 function show(id) {
   document.querySelectorAll(".card").forEach(x => x.style.display = "none");
-  document.getElementById(id).style.display = "block";
+  el(id).style.display = "block";
 
   if (id === "wetter") {
-    document.getElementById("cityInput").value = cityName;
+    el("cityInput").value = cityName;
   }
-}
-
-/* =========================
-   HELPERS
-========================= */
-function el(id) {
-  return document.getElementById(id);
-}
-
-function showAlarm(text) {
-  const box = el("alarmBox");
-  box.innerText = "⚠️ " + text;
-  box.style.display = "block";
-  setTimeout(() => box.style.display = "none", 5000);
-}
-
-function getEmoji(type) {
-  if (!type) return "🌦️";
-  if (type.includes("Clear")) return "☀️";
-  if (type.includes("Clouds")) return "☁️";
-  if (type.includes("Rain")) return "🌧️";
-  if (type.includes("Thunderstorm")) return "⛈️";
-  if (type.includes("Snow")) return "❄️";
-  if (type.includes("Ash")) return "🌋";
-  if (type.includes("Wind")) return "💨";
-  if (type.includes("Mist")) return "🌫️";
-  return "🌦️";
-}
-
-function updateAmpel(c) {
-  const ampel = el("ampel");
-  const txt = el("ampelText");
-
-  if (c < 800) {
-    ampel.style.background = "green";
-    txt.innerText = "Gut";
-  } else if (c < 1200) {
-    ampel.style.background = "orange";
-    txt.innerText = "Mittel";
-  } else {
-    ampel.style.background = "red";
-    txt.innerText = "Lüften!";
-  }
-}
-
-function checkAlarmAllowed(d) {
-  if (!d || !d.alarmMode || d.alarmMode === "on") return true;
-  if (d.alarmMode === "off") return false;
-
-  const hours = Number(d.alarmMode);
-  const last = Number(d.alarmTime || 0);
-  const diffHours = (Date.now() - last) / (1000 * 60 * 60);
-  return diffHours > hours;
-}
-
-function sanitizeUrl(u) {
-  return (u || "").replace(/"/g, "").trim();
-}
-
-/* =========================
-   HANDOUT
-========================= */
-function setHandout(d) {
-  if (d && d.handout) {
-    handoutURL = sanitizeUrl(d.handout);
-  }
-}
-
-function openPreview() {
-  if (handoutURL) window.open(handoutURL, "_blank");
-  else showAlarm("Kein Handout vorhanden");
-}
-
-function downloadHandout() {
-  if (handoutURL) window.open(handoutURL, "_blank");
-  else showAlarm("Kein Handout vorhanden");
 }
 
 /* =========================
    CHART
 ========================= */
-let chart = null;
-
 function initChart() {
-  const ctx = el("chart");
-  chart = new Chart(ctx, {
+  chart = new Chart(el("chart"), {
     type: "line",
     data: {
       labels: [],
       datasets: [
-        { label: "Temp °C", data: [], borderColor: "orange", yAxisID: "y" },
-        { label: "KTY °C", data: [], borderColor: "red", yAxisID: "y" },
-        { label: "Hum %", data: [], borderColor: "blue", yAxisID: "y1" },
-        { label: "CO2 ppm", data: [], borderColor: "green", yAxisID: "y1" }
+        { label: "Temp °C", data: [], borderColor: "orange", fill: false },
+        { label: "KTY °C", data: [], borderColor: "red", fill: false },
+        { label: "Hum %", data: [], borderColor: "blue", fill: false },
+        { label: "CO2 ppm", data: [], borderColor: "green", fill: false }
       ]
     },
     options: {
@@ -345,14 +282,12 @@ function initChart() {
         legend: { display: true, position: "top" }
       },
       scales: {
-        y: {
-          position: "left",
-          title: { display: true, text: "°C" }
+        x: {
+          title: { display: true, text: "Zeit" }
         },
-        y1: {
-          position: "right",
-          grid: { drawOnChartArea: false },
-          title: { display: true, text: "% / ppm" }
+        y: {
+          title: { display: true, text: "Werte" },
+          beginAtZero: true
         }
       }
     }
@@ -384,6 +319,91 @@ function clearChart() {
 }
 
 /* =========================
+   ALARMS (QUEUE)
+========================= */
+const activeAlarms = new Set();
+
+function sanitizeAlarmText(text) {
+  return String(text || "").trim();
+}
+
+function showAlarm(text) {
+  text = sanitizeAlarmText(text);
+  if (!text) return;
+
+  // gleiche Meldung nicht mehrfach gleichzeitig spammen
+  if (activeAlarms.has(text)) return;
+
+  activeAlarms.add(text);
+
+  const container = el("alarmBox");
+  const div = document.createElement("div");
+  div.className = "alarmItem";
+  div.innerText = "⚠️ " + text;
+  container.appendChild(div);
+
+  setTimeout(() => {
+    div.style.opacity = "0";
+    setTimeout(() => {
+      div.remove();
+      activeAlarms.delete(text);
+    }, 250);
+  }, 5000);
+}
+
+function checkAlarmAllowed(d) {
+  if (!d || !d.alarmMode || d.alarmMode === "on") return true;
+  if (d.alarmMode === "off") return false;
+
+  const hours = Number(d.alarmMode);
+  const last = Number(d.alarmTime || 0);
+  const diffHours = (Date.now() - last) / (1000 * 60 * 60);
+  return diffHours > hours;
+}
+
+/* =========================
+   HANDOUT
+========================= */
+function sanitizeUrl(u) {
+  return (u || "").replace(/"/g, "").trim();
+}
+
+function setHandout(d) {
+  if (d && d.handout) {
+    handoutURL = sanitizeUrl(d.handout);
+  }
+}
+
+function openPreview() {
+  if (handoutURL) window.open(handoutURL, "_blank");
+  else showAlarm("Kein Handout vorhanden");
+}
+
+function downloadHandout() {
+  if (handoutURL) window.open(handoutURL, "_blank");
+  else showAlarm("Kein Handout vorhanden");
+}
+
+/* =========================
+   AMPEL
+========================= */
+function updateAmpel(c) {
+  const ampel = el("ampel");
+  const txt = el("ampelText");
+
+  if (Number(c) < 800) {
+    ampel.style.background = "green";
+    txt.innerText = "Gut";
+  } else if (Number(c) < 1200) {
+    ampel.style.background = "orange";
+    txt.innerText = "Mittel";
+  } else {
+    ampel.style.background = "red";
+    txt.innerText = "Lüften!";
+  }
+}
+
+/* =========================
    DEMO SYNC
 ========================= */
 let demoDebounce = null;
@@ -392,6 +412,7 @@ function patchDemoValues() {
   clearTimeout(demoDebounce);
   demoDebounce = setTimeout(async () => {
     const payload = {
+      mode: "demo",
       demo: {
         temp: Number(el("tempSlider").value),
         kty: Number(el("ktySlider").value),
@@ -411,7 +432,7 @@ function patchDemoValues() {
 }
 
 function bindDemoSliders() {
-  ["tempSlider","ktySlider","humSlider","co2Slider","weatherSlider"].forEach(id => {
+  ["tempSlider", "ktySlider", "humSlider", "co2Slider", "weatherSlider"].forEach(id => {
     el(id).addEventListener("input", () => {
       el("tempVal").innerText = el("tempSlider").value;
       el("ktyVal").innerText = el("ktySlider").value;
@@ -468,7 +489,7 @@ async function saveAlarm() {
 }
 
 /* =========================
-   WEATHER / LOCATION
+   LOCATION / WEATHER
 ========================= */
 function setCity() {
   const val = el("cityInput").value.trim();
@@ -478,7 +499,32 @@ function setCity() {
   }
   cityName = val;
   localStorage.setItem("city", cityName);
+  el("city").innerText = "📍 " + cityName;
   loadWeather();
+}
+
+function weatherEmoji(type) {
+  if (!type) return "🌦️";
+  if (type.includes("Clear")) return "☀️";
+  if (type.includes("Clouds")) return "☁️";
+  if (type.includes("Rain")) return "🌧️";
+  if (type.includes("Thunderstorm")) return "⛈️";
+  if (type.includes("Snow")) return "❄️";
+  if (type.includes("Ash")) return "🌋";
+  if (type.includes("Wind")) return "💨";
+  if (type.includes("Mist")) return "🌫️";
+  return "🌦️";
+}
+
+function handleOutsideAlarms(weatherType, tempValue) {
+  const t = String(weatherType || "");
+
+  if (tempValue <= -1) showAlarm("❄️ Extrem kalt draußen!");
+  if (tempValue >= 30) showAlarm("🔥 Extrem warm draußen!");
+  if (t.includes("Rain")) showAlarm("🌧️ Fenster zu!");
+  if (t.includes("Snow")) showAlarm("❄️ Schnee draußen!");
+  if (t.includes("Thunderstorm")) showAlarm("⛈️ Unwetter draußen!");
+  if (t.includes("Ash")) showAlarm("🌋 Vulkanasche draußen!");
 }
 
 async function loadWeather() {
@@ -489,14 +535,13 @@ async function loadWeather() {
     // Demo-Wetter
     if (modeCache === "demo" && root?.demo) {
       outsideTemp = Number(root.demo.weatherTemp);
-      const e = getEmoji(root.demo.weatherType);
+      const e = weatherEmoji(root.demo.weatherType);
 
       el("city").innerText = "📍 Demo";
       el("wNow").innerText = e + " " + outsideTemp.toFixed(1) + "°C";
       el("w1").innerText = e + " " + (outsideTemp + 1).toFixed(1) + "°C";
       el("w2").innerText = e + " " + (outsideTemp + 2).toFixed(1) + "°C";
 
-      // Wetteralarme in Demo
       if (checkAlarmAllowed(root)) {
         handleOutsideAlarms(root.demo.weatherType, outsideTemp);
       }
@@ -518,28 +563,16 @@ async function loadWeather() {
 
     outsideTemp = Number(now.main.temp);
 
-    el("wNow").innerText = getEmoji(now.weather[0].main) + " " + now.main.temp.toFixed(1) + "°C";
-    el("w1").innerText = getEmoji(h1.weather[0].main) + " " + h1.main.temp.toFixed(1) + "°C";
-    el("w2").innerText = getEmoji(h2.weather[0].main) + " " + h2.main.temp.toFixed(1) + "°C";
+    el("wNow").innerText = weatherEmoji(now.weather[0].main) + " " + now.main.temp.toFixed(1) + "°C";
+    el("w1").innerText = weatherEmoji(h1.weather[0].main) + " " + h1.main.temp.toFixed(1) + "°C";
+    el("w2").innerText = weatherEmoji(h2.weather[0].main) + " " + h2.main.temp.toFixed(1) + "°C";
 
-    if (checkAlarmAllowed(w)) {
+    if (checkAlarmAllowed(root)) {
       handleOutsideAlarms(now.weather[0].main, outsideTemp);
     }
   } catch (e) {
     console.log("Weather error:", e);
   }
-}
-
-function handleOutsideAlarms(weatherType, tempValue) {
-  const t = String(weatherType || "");
-
-  if (tempValue <= -1) showAlarm("❄️ Extrem kalt draußen!");
-  if (tempValue >= 30) showAlarm("🔥 Extrem warm draußen!");
-
-  if (t.includes("Rain")) showAlarm("🌧️ Fenster zu!");
-  if (t.includes("Snow")) showAlarm("❄️ Schnee draußen!");
-  if (t.includes("Thunderstorm")) showAlarm("⛈️ Unwetter draußen!");
-  if (t.includes("Ash")) showAlarm("🌋 Vulkanasche draußen!");
 }
 
 /* =========================
@@ -557,8 +590,8 @@ async function load() {
     const heartbeat = Number(status.heartbeat || 0);
     const rssi = status.rssi ?? "--";
     const voltage = status.voltage ?? "--";
-
     const online = (Date.now() - heartbeat) < 10000;
+
     el("espStatus").style.background = online ? "green" : "red";
     el("espText").innerText = online ? "Online" : "Offline";
     el("wifi").innerText = rssi;
@@ -575,20 +608,17 @@ async function load() {
     updateAmpel(Number(v.co2 ?? 0));
     pushChart(v.temp, v.kty, v.hum, v.co2);
 
-    // Raum-Alarme
+    // Raumalarme
     if (checkAlarmAllowed(root)) {
       const co2Val = Number(v.co2 ?? 0);
       if (co2Val > 1200) showAlarm("🚨 Lüften!");
 
-      // nur in Verbindung mit Wetter: fällt draußen kalt/heiß zusätzlich hier mit rein
-      if (outsideTemp !== null) {
-        handleOutsideAlarms(
-          modeCache === "demo" ? (root.demo?.weatherType || "") : "",
-          Number(outsideTemp)
-        );
+      // Wenn Wetter bereits geladen ist, kann die Außentemperatur hier mit berücksichtigt werden
+      if (outsideTemp !== null && modeCache !== "demo") {
+        if (outsideTemp <= -1) showAlarm("❄️ Extrem kalt draußen!");
+        if (outsideTemp >= 30) showAlarm("🔥 Extrem warm draußen!");
       }
     }
-
   } catch (e) {
     console.log("Load error:", e);
   }
@@ -601,20 +631,20 @@ window.addEventListener("DOMContentLoaded", () => {
   initChart();
   bindDemoSliders();
 
-  // slider labels initial setzen
+  // Initiale Slider-Texte
   el("tempVal").innerText = el("tempSlider").value;
   el("ktyVal").innerText = el("ktySlider").value;
   el("humVal").innerText = el("humSlider").value;
   el("co2Val").innerText = el("co2Slider").value;
   el("weatherVal").innerText = el("weatherSlider").value;
 
-  // city initial
+  // Standort wieder einsetzen
   el("cityInput").value = cityName;
   el("city").innerText = "📍 " + cityName;
 
-  // erster Wetterabruf
-  loadWeather();
+  // Start
   load();
+  loadWeather();
 
   setInterval(load, 3000);
   setInterval(loadWeather, 10000);
