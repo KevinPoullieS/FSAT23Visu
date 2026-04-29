@@ -377,9 +377,10 @@ async function loadWeather() {
       const e = weatherEmoji(root.demo.weatherType);
 
       el("city").innerText = "📍 Demo";
-      el("wNow").innerText = e + " " + outsideTemp.toFixed(1) + "°C";
-      el("w1").innerText = e + " " + (outsideTemp + 1).toFixed(1) + "°C";
-      el("w2").innerText = e + " " + (outsideTemp + 2).toFixed(1) + "°C";
+       el("wNow").innerText = weatherEmoji(now.weather[0].main) + " " + now.main.temp.toFixed(1) + "°C";
+
+      el("w1").innerText = weatherEmoji(h1.weather[0].main) + " " + h1.main.temp.toFixed(1) + "°C";
+      el("w2").innerText = weatherEmoji(h2.weather[0].main) + " " + h2.main.temp.toFixed(1) + "°C";
 
       if (root.alarmMode !== "off") {
         handleOutsideAlarms(root.demo.weatherType, outsideTemp);
