@@ -400,10 +400,9 @@ function updateEspStatus(status) {
 
   const online = lastHeartbeatSeenAt > 0 && (Date.now() - lastHeartbeatSeenAt < 15000);
 
-  el("espStatus").style.background = online ? "limegreen" : "red";
   el("espText").innerText = online ? "🟢 Online" : "🔴 Offline";
-  el("wifi").innerText = (status?.rssi ?? "--");
-  el("volt").innerText = (Number(status?.voltage ?? 0)).toFixed(2);
+  el("wifi").innerText = (status?.rssi ?? "--") + " dBm";
+  el("volt").innerText = Number(status?.voltage ?? 0).toFixed(2) + " V";
 }
 
 async function load() {
