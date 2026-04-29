@@ -90,6 +90,28 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 <p>🫁 CO2: <span id="co2Val">800</span> ppm</p>
 <input id="co2Slider" type="range" min="400" max="2000" value="800">
 
+<p>🌦️ Wetter: <span id="weatherVal">15</span> °C</p>
+<input id="weatherSlider" type="range" min="-10" max="40" value="15">
+
+<select id="weatherType">
+<option>Clear</option>
+<option>Clouds</option>
+<option>Rain</option>
+<option>Thunderstorm</option>
+<option>Snow</option>
+<option>Ash</option>
+</select>
+
+<h3>🔔 Alarm</h3>
+<select id="alarmMode">
+<option value="on">AN</option>
+<option value="1">Pause 1h</option>
+<option value="6">Pause 6h</option>
+<option value="24">Pause 24h</option>
+<option value="off">AUS</option>
+</select>
+<button onclick="saveAlarm()">Speichern</button>
+
 <button onclick="startDemo()">🎮 Demo Start</button>
 <button onclick="goLive()">📡 Live</button>
 
@@ -107,6 +129,18 @@ let apiKey="e733d08921989a3920c3e85507388b6e";
 let cityName=localStorage.getItem("city")||"Worms";
 
 let displayLock=false;
+let alarmUntil=0;
+
+// ===== WEATHER EMOJI =====
+function getWeatherEmoji(type){
+ if(type==="Clear") return "☀️";
+ if(type==="Clouds") return "☁️";
+ if(type==="Rain") return "🌧️";
+ if(type==="Thunderstorm") return "⛈️";
+ if(type==="Snow") return "❄️";
+ if(type==="Ash") return "🌋";
+ return "🌦️";
+}
 
 // LOGIN
 function loginAdmin(){
@@ -127,161 +161,22 @@ function show(id){
  document.getElementById(id).style.display="block";
 }
 
-// SLIDER
-tempSlider.oninput=()=>tempVal.innerText=tempSlider.value;
-ktySlider.oninput=()=>ktyVal.innerText=ktySlider.value;
-humSlider.oninput=()=>humVal.innerText=humSlider.value;
-co2Slider.oninput=()=>co2Val.innerText=co2Slider.value;
-
-// CHART
-let chart=new Chart(roomChart,{
- type:"line",
- data:{labels:[],datasets:[
-  {label:"DHT",data:[],borderColor:"orange",yAxisID:"y"},
-  {label:"KTY",data:[],borderColor:"red",yAxisID:"y"},
-  {label:"Hum",data:[],borderColor:"blue",yAxisID:"y1"},
-  {label:"CO2",data:[],borderColor:"green",yAxisID:"y1"}
- ]},
- options:{scales:{y:{position:"left"},y1:{position:"right",grid:{drawOnChartArea:false}}}}
-});
-
-// LOAD
-async function load(){
- try{
-  let d=await (await fetch(urlData)).json();
-  let root=await (await fetch(urlRoot)).json();
-
-  setHandout(root);
-
-  let s=root.status||{};
-  let diff=(Date.now()-s.heartbeat)/1000;
-
-  espStatus.style.background=diff<10?"green":"red";
-  espText.innerText=diff<10?"Online":"Offline";
-
-  wifi.innerText=s.rssi||"--";
-  volt.innerText=(s.voltage||0).toFixed(2);
-
-  let mode=root.mode||"live";
-
-  let v=(mode==="demo")?{
-   temp:root.demo.temp,
-   kty:root.demo.kty,
-   hum:root.demo.hum,
-   co2:root.demo.co2
-  }:d;
-
-  temp.innerText=v.temp;
-  kty.innerText=v.kty;
-  hum.innerText=v.hum;
-  co2.innerText=v.co2;
-
-  updateAmpel(v.co2);
-  checkTempAlarm(v.temp);
-
-  let t=new Date().toLocaleTimeString();
-
-  chart.data.labels.push(t);
-  chart.data.datasets[0].data.push(v.temp);
-  chart.data.datasets[1].data.push(v.kty);
-  chart.data.datasets[2].data.push(v.hum);
-  chart.data.datasets[3].data.push(v.co2);
-
-  if(chart.data.labels.length>20){
-   chart.data.labels.shift();
-   chart.data.datasets.forEach(ds=>ds.data.shift());
-  }
-
-  chart.update();
-
-  loadWeather();
-
- }catch(e){
-  console.log("LOAD ERROR",e);
- }
+// ALARM CONTROL
+function saveAlarm(){
+ let val=alarmMode.value;
+ if(val==="on") alarmUntil=0;
+ else if(val==="off") alarmUntil=Infinity;
+ else alarmUntil=Date.now()+val*3600000;
 }
 
-// WETTER
-async function loadWeather(){
- try{
-  let url=`https://api.openweathermap.org/data/2.5/forecast?q=${cityName}&appid=${apiKey}&units=metric&lang=de`;
-  let res=await fetch(url);
-  let data=await res.json();
-
-  if(!data.list) return;
-
-  let now=data.list[0];
-  let type=now.weather[0].main;
-
-  wNow.innerText=now.main.temp.toFixed(1)+"°C";
-  w1.innerText=data.list[1].main.temp.toFixed(1)+"°C";
-  w2.innerText=data.list[2].main.temp.toFixed(1)+"°C";
-
-  city.innerText=cityName;
-
-  checkWeatherAlert(type);
-
- }catch(e){
-  console.log("Wetter Fehler",e);
- }
-}
-
-// CITY
-function setCity(){
- cityName=cityInput.value;
- localStorage.setItem("city",cityName);
-}
-
-// AMPEL + CO2 ALARM
-function updateAmpel(c){
-
- if(c<800){
-  ampel.style.background="green";
-  ampelText.innerText="Gut";
- }
- else if(c<1200){
-  ampel.style.background="orange";
-  ampelText.innerText="Mittel";
- }
- else{
-  ampel.style.background="red";
-  ampelText.innerText="Lüften!";
-
-  if(!displayLock){
-   showAlert("🫁 CO2 ZU HOCH! LÜFTEN!");
-  }
- }
-}
-
-// TEMP ALARM
-function checkTempAlarm(t){
- if(displayLock) return;
-
- if(t>=30){
-  showAlert("🔥 EXTREM HEISS!");
- }
- else if(t<=-1){
-  showAlert("❄️ EXTREM KALT!");
- }
-}
-
-// WETTER ALARM
-function checkWeatherAlert(type){
- if(displayLock) return;
-
- if(type==="Ash"){
-  showAlert("🌋 ACHTUNG ASCHE!");
- }
- else if(type==="Snow"){
-  showAlert("❄️ ACHTUNG SCHNEE!");
- }
- else if(type==="Thunderstorm"){
-  showAlert("⛈️ ACHTUNG GEWITTER!");
- }
+function alarmActive(){
+ return Date.now()>alarmUntil;
 }
 
 // ALERT
 function showAlert(text){
+ if(!alarmActive() || displayLock) return;
+
  displayLock=true;
 
  let box=document.createElement("div");
@@ -293,8 +188,6 @@ function showAlert(text){
  box.style.background="red";
  box.style.padding="20px";
  box.style.borderRadius="15px";
- box.style.fontSize="20px";
- box.style.zIndex="9999";
 
  document.body.appendChild(box);
 
@@ -304,20 +197,91 @@ function showAlert(text){
  },10000);
 }
 
-// HANDOUT
-let handoutURL="";
-function setHandout(d){
- if(d.handout){
-  handoutURL=d.handout.replace(/"/g,"").trim();
+// LOAD
+async function load(){
+ try{
+  let d=await (await fetch(urlData)).json();
+  let root=await (await fetch(urlRoot)).json();
+
+  let mode=root.mode||"live";
+
+  let v=(mode==="demo")?{
+   temp:root.demo.temp,
+   kty:root.demo.kty,
+   hum:root.demo.hum,
+   co2:root.demo.co2,
+   weatherTemp:root.demo.weatherTemp,
+   weatherType:root.demo.weatherType
+  }:d;
+
+  temp.innerText=v.temp;
+  kty.innerText=v.kty;
+  hum.innerText=v.hum;
+  co2.innerText=v.co2;
+
+  updateAmpel(v.co2);
+  checkTempAlarm(v.temp);
+
+  loadWeather(v,mode);
+
+ }catch(e){
+  console.log(e);
  }
 }
-function openPreview(){
- if(handoutURL) window.open(handoutURL,"_blank");
- else alert("Kein Handout vorhanden");
+
+// WETTER
+function loadWeather(v,mode){
+ if(mode==="demo"){
+  wNow.innerText=v.weatherTemp+"°C";
+  city.innerText=getWeatherEmoji(v.weatherType)+" "+cityName;
+  checkWeatherAlert(v.weatherType);
+ } else{
+  // Live API
+  fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${cityName}&appid=${apiKey}&units=metric&lang=de`)
+  .then(res=>res.json())
+  .then(data=>{
+   let now=data.list[0];
+   let type=now.weather[0].main;
+
+   wNow.innerText=now.main.temp.toFixed(1)+"°C";
+   w1.innerText=data.list[1].main.temp.toFixed(1)+"°C";
+   w2.innerText=data.list[2].main.temp.toFixed(1)+"°C";
+
+   city.innerText=getWeatherEmoji(type)+" "+cityName;
+
+   checkWeatherAlert(type);
+  });
+ }
 }
-function downloadHandout(){
- if(handoutURL) window.open(handoutURL,"_blank");
- else alert("Kein Handout vorhanden");
+
+// CITY
+function setCity(){
+ cityName=cityInput.value;
+ localStorage.setItem("city",cityName);
+}
+
+// AMPEL + CO2 ALERT
+function updateAmpel(c){
+ if(c<800){ampel.style.background="green";ampelText.innerText="Gut";}
+ else if(c<1200){ampel.style.background="orange";ampelText.innerText="Mittel";}
+ else{
+  ampel.style.background="red";
+  ampelText.innerText="Lüften!";
+  showAlert("🫁 CO2 ZU HOCH! LÜFTEN!");
+ }
+}
+
+// TEMP ALERT
+function checkTempAlarm(t){
+ if(t>=30) showAlert("🔥 EXTREM HEISS!");
+ if(t<=-1) showAlert("❄️ EXTREM KALT!");
+}
+
+// WEATHER ALERT
+function checkWeatherAlert(type){
+ if(type==="Snow") showAlert("❄️ ACHTUNG SCHNEE!");
+ if(type==="Thunderstorm") showAlert("⛈️ ACHTUNG GEWITTER!");
+ if(type==="Ash") showAlert("🌋 ACHTUNG ASCHE!");
 }
 
 // DEMO
@@ -330,7 +294,9 @@ function startDemo(){
       temp:+tempSlider.value,
       kty:+ktySlider.value,
       hum:+humSlider.value,
-      co2:+co2Slider.value
+      co2:+co2Slider.value,
+      weatherTemp:+weatherSlider.value,
+      weatherType:weatherType.value
     }
   })
  });
