@@ -222,8 +222,8 @@ async function load(){
  // ALARME
  if(checkAlarmAllowed(d)){
   if(v?.co2>1200) showAlarm("Lüften!");
-  if(v?.temp <= -1) showAlarm("Extrem kalt draußen!");
-  if(v?.temp >= 30) showAlarm("Extrem warm draußen!");
+  if(v?.temp <= -1) showAlarm("❄️ Extrem kalt draußen!");
+  if(v?.temp >= 30) showAlarm("🔥 Extrem warm draußen!");
  }
 
  // CHART
