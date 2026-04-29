@@ -379,8 +379,8 @@ async function loadWeather() {
 
       el("city").innerText = "📍 Demo";
       el("wNow").innerText = e + " " + outsideTemp.toFixed(1) + "°C";
-      el("w1").innerText = e + " " + (outsideTemp + 1).toFixed(1) + "°C";
-      el("w2").innerText = e + " " + (outsideTemp + 2).toFixed(1) + "°C";
+      el("w1").innerText = e + " " + (outsideTemp + 3).toFixed(1) + "°C";
+      el("w2").innerText = e + " " + (outsideTemp + 6).toFixed(1) + "°C";
 
       if (root.alarmMode !== "off") {
         handleOutsideAlarms(demo.weatherType, outsideTemp);
