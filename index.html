@@ -1,12 +1,10 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<meta name="viewport" content="width=device-width, initial-scale=1">
 <meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>CO2 PRO FINAL</title>
-
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
 <style>
 body{
   font-family:Arial,sans-serif;
@@ -59,8 +57,6 @@ canvas{
   border-radius:12px;
   margin-top:10px;
 }
-
-/* Alarm-Queue */
 #alarmBox{
   position:fixed;
   top:20px;
@@ -73,7 +69,6 @@ canvas{
   align-items:center;
   pointer-events:none;
 }
-
 .alarmItem{
   background:red;
   color:white;
@@ -81,24 +76,16 @@ canvas{
   border-radius:10px;
   font-size:16px;
   box-shadow:0 5px 15px rgba(0,0,0,0.4);
-  animation:fadeIn 0.25s ease;
   pointer-events:none;
   min-width:220px;
   max-width:90vw;
 }
-
-@keyframes fadeIn{
-  from{opacity:0;transform:translateY(-10px);}
-  to{opacity:1;transform:translateY(0);}
-}
-
 .small{
   font-size:14px;
   opacity:0.8;
 }
 </style>
 </head>
-
 <body>
 
 <div id="alarmBox"></div>
@@ -113,20 +100,18 @@ canvas{
 </div>
 
 <div id="app" style="display:none">
-
   <button onclick="show('raum')">🏠 Raum</button>
   <button onclick="show('wetter')">🌦️ Wetter</button>
   <button onclick="show('handout')">📄 Handout</button>
   <button onclick="show('settings')" id="adminBtn" style="display:none">⚙️ Admin</button>
 
-  <!-- RAUM -->
   <div id="raum" class="card">
     <h2>Raum</h2>
 
     <h3>ESP32 Status</h3>
     <div id="espStatus" class="esp"></div>
     <p id="espText"></p>
-    <p>📶 <span id="wifi">--</span> dBm</p>
+    <p>📶 <span id="wifi">--</span></p>
     <p>🔋 <span id="volt">--</span> V</p>
 
     <div class="value">🌡️ Temp: <span id="temp">--</span> °C</div>
@@ -141,20 +126,16 @@ canvas{
     <canvas id="chart" height="180"></canvas>
   </div>
 
-  <!-- WETTER -->
   <div id="wetter" class="card" style="display:none">
     <h2>Wetter</h2>
-
     <input id="cityInput" placeholder="Ort">
     <button onclick="setCity()">Speichern</button>
-
     <p id="city">📍 --</p>
     <p>Jetzt: <span id="wNow">--</span></p>
     <p>+1h: <span id="w1">--</span></p>
     <p>+2h: <span id="w2">--</span></p>
   </div>
 
-  <!-- HANDOUT -->
   <div id="handout" class="card" style="display:none">
     <h2>📄 Handout</h2>
     <button onclick="openPreview()">👁️ Vorschau</button>
@@ -162,12 +143,10 @@ canvas{
     <p class="small">Link kommt aus Firebase.</p>
   </div>
 
-  <!-- SETTINGS -->
   <div id="settings" class="card" style="display:none">
     <h2>Admin</h2>
 
     <h3>🎮 Demo</h3>
-
     <p>🌡️ Temp: <span id="tempVal">20</span> °C</p>
     <input id="tempSlider" type="range" min="-5" max="50" value="20">
 
@@ -205,33 +184,25 @@ canvas{
       <option value="off">AUS</option>
     </select>
     <button onclick="saveAlarm()">Speichern</button>
-
-    <p class="small">Demo-Slider schreiben live in Firebase, solange Demo aktiv ist.</p>
   </div>
-
 </div>
 
 <script>
 const FIREBASE_URL = "https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app/.json";
-const OPENWEATHER_KEY = "e733d08921989a3920c3e85507388b6e";
+const OPENWEATHER_KEY = "DEIN_OPENWEATHER_KEY";
 
 let cityName = localStorage.getItem("city") || "Worms";
 let handoutURL = "";
 let outsideTemp = null;
 let modeCache = "live";
-let alarmHideUntil = 0;
 let chart = null;
+let lastHeartbeatValue = null;
+let lastHeartbeatSeenAt = 0;
 
-/* =========================
-   DOM HELPERS
-========================= */
 function el(id) {
   return document.getElementById(id);
 }
 
-/* =========================
-   LOGIN
-========================= */
 function loginSchueler() {
   el("login").style.display = "none";
   el("app").style.display = "block";
@@ -248,47 +219,31 @@ function loginAdmin() {
   }
 }
 
-/* =========================
-   NAV
-========================= */
 function show(id) {
   document.querySelectorAll(".card").forEach(x => x.style.display = "none");
   el(id).style.display = "block";
-
-  if (id === "wetter") {
-    el("cityInput").value = cityName;
-  }
+  if (id === "wetter") el("cityInput").value = cityName;
 }
 
-/* =========================
-   CHART
-========================= */
 function initChart() {
   chart = new Chart(el("chart"), {
     type: "line",
     data: {
       labels: [],
       datasets: [
-        { label: "Temp °C", data: [], borderColor: "orange", fill: false },
-        { label: "KTY °C", data: [], borderColor: "red", fill: false },
-        { label: "Hum %", data: [], borderColor: "blue", fill: false },
-        { label: "CO2 ppm", data: [], borderColor: "green", fill: false }
+        { label: "Temp °C", data: [] },
+        { label: "KTY °C", data: [] },
+        { label: "Hum %", data: [] },
+        { label: "CO2 ppm", data: [] }
       ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: true,
-      plugins: {
-        legend: { display: true, position: "top" }
-      },
+      plugins: { legend: { display: true, position: "top" } },
       scales: {
-        x: {
-          title: { display: true, text: "Zeit" }
-        },
-        y: {
-          title: { display: true, text: "Werte" },
-          beginAtZero: true
-        }
+        x: { title: { display: true, text: "Zeit" } },
+        y: { title: { display: true, text: "Werte" }, beginAtZero: true }
       }
     }
   });
@@ -296,7 +251,6 @@ function initChart() {
 
 function pushChart(temp, kty, hum, co2) {
   if (!chart) return;
-
   chart.data.labels.push(new Date().toLocaleTimeString());
   chart.data.datasets[0].data.push(Number(temp || 0));
   chart.data.datasets[1].data.push(Number(kty || 0));
@@ -307,7 +261,6 @@ function pushChart(temp, kty, hum, co2) {
     chart.data.labels.shift();
     chart.data.datasets.forEach(ds => ds.data.shift());
   }
-
   chart.update();
 }
 
@@ -318,24 +271,13 @@ function clearChart() {
   chart.update();
 }
 
-/* =========================
-   ALARMS (QUEUE)
-========================= */
 const activeAlarms = new Set();
 
-function sanitizeAlarmText(text) {
-  return String(text || "").trim();
-}
-
 function showAlarm(text) {
-  text = sanitizeAlarmText(text);
-  if (!text) return;
-
-  // gleiche Meldung nicht mehrfach gleichzeitig spammen
-  if (activeAlarms.has(text)) return;
+  text = String(text || "").trim();
+  if (!text || activeAlarms.has(text)) return;
 
   activeAlarms.add(text);
-
   const container = el("alarmBox");
   const div = document.createElement("div");
   div.className = "alarmItem";
@@ -351,27 +293,12 @@ function showAlarm(text) {
   }, 5000);
 }
 
-function checkAlarmAllowed(d) {
-  if (!d || !d.alarmMode || d.alarmMode === "on") return true;
-  if (d.alarmMode === "off") return false;
-
-  const hours = Number(d.alarmMode);
-  const last = Number(d.alarmTime || 0);
-  const diffHours = (Date.now() - last) / (1000 * 60 * 60);
-  return diffHours > hours;
-}
-
-/* =========================
-   HANDOUT
-========================= */
 function sanitizeUrl(u) {
   return (u || "").replace(/"/g, "").trim();
 }
 
 function setHandout(d) {
-  if (d && d.handout) {
-    handoutURL = sanitizeUrl(d.handout);
-  }
+  if (d && d.handout) handoutURL = sanitizeUrl(d.handout);
 }
 
 function openPreview() {
@@ -384,9 +311,6 @@ function downloadHandout() {
   else showAlarm("Kein Handout vorhanden");
 }
 
-/* =========================
-   AMPEL
-========================= */
 function updateAmpel(c) {
   const ampel = el("ampel");
   const txt = el("ampelText");
@@ -403,9 +327,114 @@ function updateAmpel(c) {
   }
 }
 
-/* =========================
-   DEMO SYNC
-========================= */
+function weatherEmoji(type) {
+  if (!type) return "🌦️";
+  if (type.includes("Clear")) return "☀️";
+  if (type.includes("Clouds")) return "☁️";
+  if (type.includes("Rain")) return "🌧️";
+  if (type.includes("Thunderstorm")) return "⛈️";
+  if (type.includes("Snow")) return "❄️";
+  if (type.includes("Ash")) return "🌋";
+  if (type.includes("Wind")) return "💨";
+  if (type.includes("Mist")) return "🌫️";
+  return "🌦️";
+}
+
+function handleOutsideAlarms(weatherType, tempValue) {
+  const t = String(weatherType || "");
+  if (tempValue <= -1) showAlarm("❄️ Extrem kalt draußen!");
+  if (tempValue >= 30) showAlarm("🔥 Extrem warm draußen!");
+  if (t.includes("Rain")) showAlarm("🌧️ Fenster zu!");
+  if (t.includes("Snow")) showAlarm("❄️ Schnee draußen!");
+  if (t.includes("Thunderstorm")) showAlarm("⛈️ Unwetter draußen!");
+  if (t.includes("Ash")) showAlarm("🌋 Vulkanasche draußen!");
+}
+
+async function loadWeather() {
+  try {
+    const root = await (await fetch(FIREBASE_URL)).json();
+    modeCache = root?.mode || "live";
+
+    if (modeCache === "demo" && root?.demo) {
+      outsideTemp = Number(root.demo.weatherTemp);
+      const e = weatherEmoji(root.demo.weatherType);
+
+      el("city").innerText = "📍 Demo";
+      el("wNow").innerText = e + " " + outsideTemp.toFixed(1) + "°C";
+      el("w1").innerText = e + " " + (outsideTemp + 1).toFixed(1) + "°C";
+      el("w2").innerText = e + " " + (outsideTemp + 2).toFixed(1) + "°C";
+
+      if (root.alarmMode !== "off") handleOutsideAlarms(root.demo.weatherType, outsideTemp);
+      return;
+    }
+
+    const res = await fetch(
+      `https://api.openweathermap.org/data/2.5/forecast?q=${encodeURIComponent(cityName)}&appid=${OPENWEATHER_KEY}&units=metric`
+    );
+    const w = await res.json();
+    if (String(w.cod) !== "200") return;
+
+    el("city").innerText = "📍 " + w.city.name;
+
+    const now = w.list[0];
+    const h1 = w.list[1];
+    const h2 = w.list[2];
+
+    outsideTemp = Number(now.main.temp);
+
+    el("wNow").innerText = weatherEmoji(now.weather[0].main) + " " + now.main.temp.toFixed(1) + "°C";
+    el("w1").innerText = weatherEmoji(h1.weather[0].main) + " " + h1.main.temp.toFixed(1) + "°C";
+    el("w2").innerText = weatherEmoji(h2.weather[0].main) + " " + h2.main.temp.toFixed(1) + "°C";
+  } catch (e) {
+    console.log("Weather error:", e);
+  }
+}
+
+function updateEspStatus(status) {
+  const hb = Number(status?.heartbeat ?? 0);
+
+  if (hb !== lastHeartbeatValue) {
+    lastHeartbeatValue = hb;
+    lastHeartbeatSeenAt = Date.now();
+  }
+
+  const online = lastHeartbeatSeenAt > 0 && (Date.now() - lastHeartbeatSeenAt < 15000);
+
+  el("espStatus").style.background = online ? "limegreen" : "red";
+  el("espText").innerText = online ? "🟢 Online" : "🔴 Offline";
+  el("wifi").innerText = (status?.rssi ?? "--");
+  el("volt").innerText = (Number(status?.voltage ?? 0)).toFixed(2);
+}
+
+async function load() {
+  try {
+    const root = await (await fetch(FIREBASE_URL)).json();
+    if (!root) return;
+
+    setHandout(root);
+    modeCache = root.mode || "live";
+
+    updateEspStatus(root.status || {});
+
+    const v = (modeCache === "demo" && root.demo) ? root.demo : (root.sensor || root.data);
+    if (!v) return;
+
+    el("temp").innerText = v.temp ?? "--";
+    el("kty").innerText = v.kty ?? "--";
+    el("hum").innerText = v.hum ?? "--";
+    el("co2").innerText = v.co2 ?? "--";
+
+    updateAmpel(Number(v.co2 ?? 0));
+    pushChart(v.temp, v.kty, v.hum, v.co2);
+
+    if (Number(v.co2 ?? 0) > 1200 && root.alarmMode !== "off") {
+      showAlarm("🚨 Lüften!");
+    }
+  } catch (e) {
+    console.log("Load error:", e);
+  }
+}
+
 let demoDebounce = null;
 
 function patchDemoValues() {
@@ -474,9 +503,6 @@ async function goLive() {
   clearChart();
 }
 
-/* =========================
-   ALARM SETTINGS
-========================= */
 async function saveAlarm() {
   await fetch(FIREBASE_URL, {
     method: "PATCH",
@@ -488,9 +514,6 @@ async function saveAlarm() {
   });
 }
 
-/* =========================
-   LOCATION / WEATHER
-========================= */
 function setCity() {
   const val = el("cityInput").value.trim();
   if (!val) {
@@ -503,146 +526,20 @@ function setCity() {
   loadWeather();
 }
 
-function weatherEmoji(type) {
-  if (!type) return "🌦️";
-  if (type.includes("Clear")) return "☀️";
-  if (type.includes("Clouds")) return "☁️";
-  if (type.includes("Rain")) return "🌧️";
-  if (type.includes("Thunderstorm")) return "⛈️";
-  if (type.includes("Snow")) return "❄️";
-  if (type.includes("Ash")) return "🌋";
-  if (type.includes("Wind")) return "💨";
-  if (type.includes("Mist")) return "🌫️";
-  return "🌦️";
-}
-
-function handleOutsideAlarms(weatherType, tempValue) {
-  const t = String(weatherType || "");
-
-  if (tempValue <= -1) showAlarm("❄️ Extrem kalt draußen!");
-  if (tempValue >= 30) showAlarm("🔥 Extrem warm draußen!");
-  if (t.includes("Rain")) showAlarm("🌧️ Fenster zu!");
-  if (t.includes("Snow")) showAlarm("❄️ Schnee draußen!");
-  if (t.includes("Thunderstorm")) showAlarm("⛈️ Unwetter draußen!");
-  if (t.includes("Ash")) showAlarm("🌋 Vulkanasche draußen!");
-}
-
-async function loadWeather() {
-  try {
-    const root = await (await fetch(FIREBASE_URL)).json();
-    modeCache = root?.mode || "live";
-
-    // Demo-Wetter
-    if (modeCache === "demo" && root?.demo) {
-      outsideTemp = Number(root.demo.weatherTemp);
-      const e = weatherEmoji(root.demo.weatherType);
-
-      el("city").innerText = "📍 Demo";
-      el("wNow").innerText = e + " " + outsideTemp.toFixed(1) + "°C";
-      el("w1").innerText = e + " " + (outsideTemp + 1).toFixed(1) + "°C";
-      el("w2").innerText = e + " " + (outsideTemp + 2).toFixed(1) + "°C";
-
-      if (checkAlarmAllowed(root)) {
-        handleOutsideAlarms(root.demo.weatherType, outsideTemp);
-      }
-      return;
-    }
-
-    // Live-Wetter
-    const res = await fetch(
-      `https://api.openweathermap.org/data/2.5/forecast?q=${encodeURIComponent(cityName)}&appid=${OPENWEATHER_KEY}&units=metric`
-    );
-    const w = await res.json();
-    if (String(w.cod) !== "200") return;
-
-    el("city").innerText = "📍 " + w.city.name;
-
-    const now = w.list[0];
-    const h1 = w.list[1];
-    const h2 = w.list[2];
-
-    outsideTemp = Number(now.main.temp);
-
-    el("wNow").innerText = weatherEmoji(now.weather[0].main) + " " + now.main.temp.toFixed(1) + "°C";
-    el("w1").innerText = weatherEmoji(h1.weather[0].main) + " " + h1.main.temp.toFixed(1) + "°C";
-    el("w2").innerText = weatherEmoji(h2.weather[0].main) + " " + h2.main.temp.toFixed(1) + "°C";
-
-    if (checkAlarmAllowed(root)) {
-      handleOutsideAlarms(now.weather[0].main, outsideTemp);
-    }
-  } catch (e) {
-    console.log("Weather error:", e);
-  }
-}
-
-/* =========================
-   FIREBASE LOAD
-========================= */
-async function load() {
-  try {
-    const root = await (await fetch(FIREBASE_URL)).json();
-    if (!root) return;
-
-    modeCache = root.mode || "live";
-    setHandout(root);
-
-    const status = root.status || {};
-    const heartbeat = Number(status.heartbeat || 0);
-    const rssi = status.rssi ?? "--";
-    const voltage = status.voltage ?? "--";
-    const online = (Date.now() - heartbeat) < 10000;
-
-    el("espStatus").style.background = online ? "green" : "red";
-    el("espText").innerText = online ? "Online" : "Offline";
-    el("wifi").innerText = rssi;
-    el("volt").innerText = voltage;
-
-    const v = (modeCache === "demo" && root.demo) ? root.demo : root.sensor;
-    if (!v) return;
-
-    el("temp").innerText = v.temp ?? "--";
-    el("kty").innerText = v.kty ?? "--";
-    el("hum").innerText = v.hum ?? "--";
-    el("co2").innerText = v.co2 ?? "--";
-
-    updateAmpel(Number(v.co2 ?? 0));
-    pushChart(v.temp, v.kty, v.hum, v.co2);
-
-    // Raumalarme
-    if (checkAlarmAllowed(root)) {
-      const co2Val = Number(v.co2 ?? 0);
-      if (co2Val > 1200) showAlarm("🚨 Lüften!");
-
-      // Wenn Wetter bereits geladen ist, kann die Außentemperatur hier mit berücksichtigt werden
-      if (outsideTemp !== null && modeCache !== "demo") {
-        if (outsideTemp <= -1) showAlarm("❄️ Extrem kalt draußen!");
-        if (outsideTemp >= 30) showAlarm("🔥 Extrem warm draußen!");
-      }
-    }
-  } catch (e) {
-    console.log("Load error:", e);
-  }
-}
-
-/* =========================
-   INIT
-========================= */
 window.addEventListener("DOMContentLoaded", () => {
   initChart();
   bindDemoSliders();
 
-  // Initiale Slider-Texte
   el("tempVal").innerText = el("tempSlider").value;
   el("ktyVal").innerText = el("ktySlider").value;
   el("humVal").innerText = el("humSlider").value;
   el("co2Val").innerText = el("co2Slider").value;
   el("weatherVal").innerText = el("weatherSlider").value;
 
-  // Standort wieder einsetzen
   el("cityInput").value = cityName;
   el("city").innerText = "📍 " + cityName;
 
-  // Start
+  loginSchueler();
   load();
   loadWeather();
 
@@ -650,6 +547,5 @@ window.addEventListener("DOMContentLoaded", () => {
   setInterval(loadWeather, 10000);
 });
 </script>
-
 </body>
 </html>
