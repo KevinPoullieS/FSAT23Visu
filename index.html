@@ -19,6 +19,12 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 
 <body>
 
+<!-- DEBUG BOX -->
+<div id="debugBox" style="position:fixed;top:10px;right:10px;background:#000;color:#0f0;padding:10px;font-size:12px;max-width:250px;border-radius:10px;z-index:9999;text-align:left;">
+<b>DEBUG</b><br>
+<span id="debugText">Start...</span>
+</div>
+
 <div id="login">
 <h2>Login</h2>
 <button onclick="loginSchueler()">👨‍🎓 Schüler</button><br><br>
@@ -37,7 +43,6 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 <div id="raum" class="card">
 <h2>Raum</h2>
 
-<h3>ESP32 Status</h3>
 <div id="espStatus" class="esp"></div>
 <p id="espText"></p>
 <p>📶 <span id="wifi"></span></p>
@@ -68,8 +73,6 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 
 <div id="settings" class="card" style="display:none">
 <h2>Admin</h2>
-
-<h3>🎮 Demo</h3>
 
 <input id="tempSlider" type="range" min="-5" max="50" value="20">
 <input id="ktySlider" type="range" min="-5" max="60" value="22">
@@ -107,7 +110,21 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 
 <script>
 
+// DEBUG
+function debug(msg){
+ console.log(msg);
+ debugText.innerHTML = msg + "<br>" + debugText.innerHTML;
+}
+window.onerror = e => debug("JS ERROR: "+e);
+
+// CONFIG
+let urlData="https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app/data.json";
+let urlRoot="https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app/.json";
+let apiKey="e733d08921989a3920c3e85507388b6e";
+let cityName="Worms";
 let alarmUntil=0;
+
+// HELPERS
 function alarmActive(){ return Date.now()>alarmUntil; }
 
 function getWeatherEmoji(type){
@@ -120,16 +137,19 @@ function getWeatherEmoji(type){
  return "🌦️";
 }
 
-function saveAlarm(){
- let v=alarmMode.value;
- if(v==="on") alarmUntil=0;
- else if(v==="off") alarmUntil=Infinity;
- else alarmUntil=Date.now()+v*3600000;
+// LOGIN
+function loginAdmin(){ if(pw.value==="12345"){login.style.display="none";app.style.display="block";adminBtn.style.display="block";}}
+function loginSchueler(){ login.style.display="none"; app.style.display="block";}
+
+// NAV
+function show(id){
+ document.querySelectorAll(".card").forEach(x=>x.style.display="none");
+ document.getElementById(id).style.display="block";
 }
 
+// ALERT
 function showAlert(text){
  if(!alarmActive()) return;
-
  let box=document.createElement("div");
  box.innerText=text;
  box.style.position="fixed";
@@ -140,72 +160,81 @@ function showAlert(text){
  box.style.padding="20px";
  box.style.borderRadius="15px";
  document.body.appendChild(box);
-
  setTimeout(()=>box.remove(),10000);
 }
 
-function checkWeatherAlert(type){
- if(type==="Snow") showAlert("❄️ ACHTUNG SCHNEE!");
- if(type==="Thunderstorm") showAlert("⛈️ ACHTUNG GEWITTER!");
- if(type==="Ash") showAlert("🌋 ACHTUNG ASCHE!");
+// ALARM
+function saveAlarm(){
+ let v=alarmMode.value;
+ if(v==="on") alarmUntil=0;
+ else if(v==="off") alarmUntil=Infinity;
+ else alarmUntil=Date.now()+v*3600000;
 }
 
-function updateAmpel(c){
- if(c<800){ampel.style.background="green";ampelText.innerText="Gut";}
- else if(c<1200){ampel.style.background="orange";ampelText.innerText="Mittel";}
- else{
-  ampel.style.background="red";
-  ampelText.innerText="Lüften!";
-  showAlert("🫁 CO2 ZU HOCH! LÜFTEN!");
+// CHART
+let chart=new Chart(roomChart,{
+ type:"line",
+ data:{labels:[],datasets:[
+  {label:"Temp",data:[],borderColor:"orange"},
+  {label:"CO2",data:[],borderColor:"green"}
+ ]}
+});
+
+// LOAD
+async function load(){
+ try{
+  let root=await (await fetch(urlRoot)).json();
+  let mode=root.mode||"live";
+
+  let v = (mode==="demo" && root.demo) ? root.demo : await (await fetch(urlData)).json();
+
+  temp.innerText=v.temp;
+  co2.innerText=v.co2;
+
+  chart.data.labels.push(new Date().toLocaleTimeString());
+  chart.data.datasets[0].data.push(v.temp||0);
+  chart.data.datasets[1].data.push(v.co2||0);
+  chart.update();
+
+  await loadWeather(mode,v);
+
+  debug("OK");
+
+ }catch(e){
+  debug("ERROR: "+e);
  }
 }
 
-function checkTempAlarm(t){
- if(t>=30) showAlert("🔥 EXTREM HEISS!");
- if(t<=-1) showAlert("❄️ EXTREM KALT!");
-}
+// WETTER
+async function loadWeather(mode,v){
+ try{
+  if(mode==="demo"){
+   wNow.innerText=v.weatherTemp+"°C";
+   city.innerText=getWeatherEmoji(v.weatherType)+" "+cityName;
+   return;
+  }
 
-async function load(){
- let root=await (await fetch("https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app/.json")).json();
- let mode=root.mode||"live";
-
- let v=(mode==="demo")?root.demo:await (await fetch("https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app/data.json")).json();
-
- temp.innerText=v.temp;
- kty.innerText=v.kty;
- hum.innerText=v.hum;
- co2.innerText=v.co2;
-
- updateAmpel(v.co2);
- checkTempAlarm(v.temp);
-
- if(mode==="demo"){
-  wNow.innerText=v.weatherTemp+"°C";
-  city.innerText=getWeatherEmoji(v.weatherType)+" Worms";
-  checkWeatherAlert(v.weatherType);
- }else{
-  let res=await fetch(`https://api.openweathermap.org/data/2.5/forecast?q=Worms&appid=dein_api_key&units=metric`);
+  let res=await fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${cityName}&appid=${apiKey}&units=metric`);
   let data=await res.json();
+
   let type=data.list[0].weather[0].main;
 
   wNow.innerText=data.list[0].main.temp.toFixed(1)+"°C";
-  w1.innerText=data.list[1].main.temp.toFixed(1)+"°C";
-  w2.innerText=data.list[2].main.temp.toFixed(1)+"°C";
+  city.innerText=getWeatherEmoji(type)+" "+cityName;
 
-  city.innerText=getWeatherEmoji(type)+" Worms";
-  checkWeatherAlert(type);
+ }catch(e){
+  debug("Wetter Fehler");
  }
 }
 
+// DEMO
 function startDemo(){
- fetch("https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app/.json",{
+ fetch(urlRoot,{
   method:"PATCH",
   body:JSON.stringify({
    mode:"demo",
    demo:{
     temp:+tempSlider.value,
-    kty:+ktySlider.value,
-    hum:+humSlider.value,
     co2:+co2Slider.value,
     weatherTemp:+weatherSlider.value,
     weatherType:weatherType.value
@@ -214,13 +243,12 @@ function startDemo(){
  });
 }
 
+// LIVE
 function goLive(){
- fetch("https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app/.json",{
-  method:"PATCH",
-  body:JSON.stringify({mode:"live"})
- });
+ fetch(urlRoot,{method:"PATCH",body:JSON.stringify({mode:"live"})});
 }
 
+// LOOP
 setInterval(load,3000);
 
 </script>
