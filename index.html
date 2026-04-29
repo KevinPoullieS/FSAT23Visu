@@ -76,21 +76,19 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 <div id="settings" class="card" style="display:none">
 <h2>Admin</h2>
 
-<h3>🎮 Demo</h3>
-
-<p>🌡️ Temp: <span id="tempVal">20</span> °C</p>
+<p>🌡️ Temp: <span id="tempVal">20</span></p>
 <input id="tempSlider" type="range" min="-5" max="50" value="20">
 
-<p>🔥 KTY: <span id="ktyVal">22</span> °C</p>
+<p>🔥 KTY: <span id="ktyVal">22</span></p>
 <input id="ktySlider" type="range" min="-5" max="60" value="22">
 
-<p>💧 Feuchte: <span id="humVal">50</span> %</p>
+<p>💧 Feuchte: <span id="humVal">50</span></p>
 <input id="humSlider" type="range" min="0" max="100" value="50">
 
-<p>🫁 CO2: <span id="co2Val">800</span> ppm</p>
+<p>🫁 CO2: <span id="co2Val">800</span></p>
 <input id="co2Slider" type="range" min="400" max="2000" value="800">
 
-<p>🌦️ Wetter: <span id="weatherVal">15</span> °C</p>
+<p>🌦️ Wetter: <span id="weatherVal">15</span></p>
 <input id="weatherSlider" type="range" min="-10" max="40" value="15">
 
 <select id="weatherType">
@@ -121,17 +119,10 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 
 <script>
 
-// CONFIG
-let urlData="https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app/data.json";
-let urlRoot="https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app/.json";
-
-let apiKey="e733d08921989a3920c3e85507388b6e";
-let cityName=localStorage.getItem("city")||"Worms";
-
-let displayLock=false;
+// ===== NEU =====
 let alarmUntil=0;
+function alarmActive(){ return Date.now()>alarmUntil; }
 
-// ===== WEATHER EMOJI =====
 function getWeatherEmoji(type){
  if(type==="Clear") return "☀️";
  if(type==="Clouds") return "☁️";
@@ -142,41 +133,33 @@ function getWeatherEmoji(type){
  return "🌦️";
 }
 
-// LOGIN
-function loginAdmin(){
- if(pw.value==="12345"){
-  login.style.display="none";
-  app.style.display="block";
-  adminBtn.style.display="block";
- } else error.innerText="Falsch!";
-}
-function loginSchueler(){
- login.style.display="none";
- app.style.display="block";
-}
+// CONFIG bleibt gleich
+let urlData="https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app/data.json";
+let urlRoot="https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app/.json";
 
-// NAV
-function show(id){
- document.querySelectorAll(".card").forEach(x=>x.style.display="none");
- document.getElementById(id).style.display="block";
-}
+let apiKey="e733d08921989a3920c3e85507388b6e";
+let cityName=localStorage.getItem("city")||"Worms";
 
-// ALARM CONTROL
+let displayLock=false;
+
+// LOGIN bleibt gleich
+function loginAdmin(){ if(pw.value==="12345"){login.style.display="none";app.style.display="block";adminBtn.style.display="block";} else error.innerText="Falsch!";}
+function loginSchueler(){ login.style.display="none"; app.style.display="block";}
+
+// NAV bleibt gleich
+function show(id){ document.querySelectorAll(".card").forEach(x=>x.style.display="none"); document.getElementById(id).style.display="block";}
+
+// ALARM
 function saveAlarm(){
- let val=alarmMode.value;
- if(val==="on") alarmUntil=0;
- else if(val==="off") alarmUntil=Infinity;
- else alarmUntil=Date.now()+val*3600000;
+ let v=alarmMode.value;
+ if(v==="on") alarmUntil=0;
+ else if(v==="off") alarmUntil=Infinity;
+ else alarmUntil=Date.now()+v*3600000;
 }
 
-function alarmActive(){
- return Date.now()>alarmUntil;
-}
-
-// ALERT
+// ALERT erweitert
 function showAlert(text){
  if(!alarmActive() || displayLock) return;
-
  displayLock=true;
 
  let box=document.createElement("div");
@@ -188,79 +171,15 @@ function showAlert(text){
  box.style.background="red";
  box.style.padding="20px";
  box.style.borderRadius="15px";
-
  document.body.appendChild(box);
 
- setTimeout(()=>{
-  box.remove();
-  displayLock=false;
- },10000);
+ setTimeout(()=>{box.remove();displayLock=false;},10000);
 }
 
-// LOAD
-async function load(){
- try{
-  let d=await (await fetch(urlData)).json();
-  let root=await (await fetch(urlRoot)).json();
+// REST DEIN CODE BLEIBT (LOAD, CHART, ETC)
+// ↓ NUR Ergänzungen ↓
 
-  let mode=root.mode||"live";
-
-  let v=(mode==="demo")?{
-   temp:root.demo.temp,
-   kty:root.demo.kty,
-   hum:root.demo.hum,
-   co2:root.demo.co2,
-   weatherTemp:root.demo.weatherTemp,
-   weatherType:root.demo.weatherType
-  }:d;
-
-  temp.innerText=v.temp;
-  kty.innerText=v.kty;
-  hum.innerText=v.hum;
-  co2.innerText=v.co2;
-
-  updateAmpel(v.co2);
-  checkTempAlarm(v.temp);
-
-  loadWeather(v,mode);
-
- }catch(e){
-  console.log(e);
- }
-}
-
-// WETTER
-function loadWeather(v,mode){
- if(mode==="demo"){
-  wNow.innerText=v.weatherTemp+"°C";
-  city.innerText=getWeatherEmoji(v.weatherType)+" "+cityName;
-  checkWeatherAlert(v.weatherType);
- } else{
-  // Live API
-  fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${cityName}&appid=${apiKey}&units=metric&lang=de`)
-  .then(res=>res.json())
-  .then(data=>{
-   let now=data.list[0];
-   let type=now.weather[0].main;
-
-   wNow.innerText=now.main.temp.toFixed(1)+"°C";
-   w1.innerText=data.list[1].main.temp.toFixed(1)+"°C";
-   w2.innerText=data.list[2].main.temp.toFixed(1)+"°C";
-
-   city.innerText=getWeatherEmoji(type)+" "+cityName;
-
-   checkWeatherAlert(type);
-  });
- }
-}
-
-// CITY
-function setCity(){
- cityName=cityInput.value;
- localStorage.setItem("city",cityName);
-}
-
-// AMPEL + CO2 ALERT
+// AMPEL erweitern
 function updateAmpel(c){
  if(c<800){ampel.style.background="green";ampelText.innerText="Gut";}
  else if(c<1200){ampel.style.background="orange";ampelText.innerText="Mittel";}
@@ -271,44 +190,18 @@ function updateAmpel(c){
  }
 }
 
-// TEMP ALERT
+// TEMP
 function checkTempAlarm(t){
  if(t>=30) showAlert("🔥 EXTREM HEISS!");
  if(t<=-1) showAlert("❄️ EXTREM KALT!");
 }
 
-// WEATHER ALERT
+// WETTER ALERT
 function checkWeatherAlert(type){
  if(type==="Snow") showAlert("❄️ ACHTUNG SCHNEE!");
  if(type==="Thunderstorm") showAlert("⛈️ ACHTUNG GEWITTER!");
  if(type==="Ash") showAlert("🌋 ACHTUNG ASCHE!");
 }
-
-// DEMO
-function startDemo(){
- fetch(urlRoot,{
-  method:"PATCH",
-  body:JSON.stringify({
-    mode:"demo",
-    demo:{
-      temp:+tempSlider.value,
-      kty:+ktySlider.value,
-      hum:+humSlider.value,
-      co2:+co2Slider.value,
-      weatherTemp:+weatherSlider.value,
-      weatherType:weatherType.value
-    }
-  })
- });
-}
-
-// LIVE
-function goLive(){
- fetch(urlRoot,{method:"PATCH",body:JSON.stringify({mode:"live"})});
-}
-
-// LOOP
-setInterval(load,3000);
 
 </script>
 
