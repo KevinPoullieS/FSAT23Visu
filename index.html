@@ -56,15 +56,16 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 </div>
 
 <div id="wetter" class="card" style="display:none">
-<h2>🌦️ Wetter</h2>
+<h2>Wetter</h2>
 
 <input id="cityInput" placeholder="Ort">
 <button onclick="setCity()">Speichern</button>
 
 <p id="city"></p>
-<p>🌡️ Jetzt: <span id="wNow"></span></p>
-<p>⏳ +1h: <span id="w1"></span></p>
-<p>⏳ +2h: <span id="w2"></span></p>
+<p>Jetzt: <span id="wNow"></span></p>
+<p>+1h: <span id="w1"></span></p>
+<p>+2h: <span id="w2"></span></p>
+<p>Morgen 07:00: <span id="w7"></span></p>
 </div>
 
 <div id="handout" class="card" style="display:none">
@@ -102,18 +103,12 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 <option>Ash</option>
 </select>
 
-<h3>🔔 Alarm</h3>
-<select id="alarmMode">
-<option value="on">AN</option>
-<option value="1">Pause 1h</option>
-<option value="6">Pause 6h</option>
-<option value="24">Pause 24h</option>
-<option value="off">AUS</option>
-</select>
-<button onclick="saveAlarm()">Speichern</button>
-
 <button onclick="startDemo()">🎮 Demo Start</button>
 <button onclick="goLive()">📡 Live</button>
+
+<h3>⏱️ Umschaltzeit (ms)</h3>
+<input id="switchInput" type="number" value="10000">
+<button onclick="saveSwitch()">Speichern</button>
 
 </div>
 
@@ -121,28 +116,7 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 
 <script>
 
-// ➕ NEU
-let alarmUntil=0;
-function alarmActive(){ return Date.now()>alarmUntil; }
-
-function getWeatherEmoji(type){
- if(type==="Clear") return "☀️";
- if(type==="Clouds") return "☁️";
- if(type==="Rain") return "🌧️";
- if(type==="Thunderstorm") return "⛈️";
- if(type==="Snow") return "❄️";
- if(type==="Ash") return "🌋";
- return "🌦️";
-}
-
-function saveAlarm(){
- let v=alarmMode.value;
- if(v==="on") alarmUntil=0;
- else if(v==="off") alarmUntil=Infinity;
- else alarmUntil=Date.now()+v*3600000;
-}
-
-// CONFIG (unverändert)
+// CONFIG
 let urlData="https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app/data.json";
 let urlRoot="https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app/.json";
 
@@ -153,9 +127,18 @@ let switchTime=parseInt(localStorage.getItem("switchTime"))||10000;
 let currentScreen=0;
 let displayLock=false;
 
-// LOGIN (gleich)
-function loginAdmin(){ if(pw.value==="12345"){login.style.display="none";app.style.display="block";adminBtn.style.display="block";} else error.innerText="Falsch!";}
-function loginSchueler(){ login.style.display="none"; app.style.display="block";}
+// LOGIN
+function loginAdmin(){
+ if(pw.value==="12345"){
+  login.style.display="none";
+  app.style.display="block";
+  adminBtn.style.display="block";
+ } else error.innerText="Falsch!";
+}
+function loginSchueler(){
+ login.style.display="none";
+ app.style.display="block";
+}
 
 // NAV
 function show(id){
@@ -163,14 +146,21 @@ function show(id){
  document.getElementById(id).style.display="block";
 }
 
-// SLIDER (gleich)
+// AUTO SWITCH
+function autoSwitch(){
+ let screens=["raum","wetter","handout"];
+ currentScreen=(currentScreen+1)%screens.length;
+ show(screens[currentScreen]);
+}
+
+// SLIDER
 tempSlider.oninput=()=>tempVal.innerText=tempSlider.value;
 ktySlider.oninput=()=>ktyVal.innerText=ktySlider.value;
 humSlider.oninput=()=>humVal.innerText=humSlider.value;
 co2Slider.oninput=()=>co2Val.innerText=co2Slider.value;
 weatherSlider.oninput=()=>weatherVal.innerText=weatherSlider.value;
 
-// CHART (unverändert)
+// CHART
 let chart=new Chart(roomChart,{
  type:"line",
  data:{labels:[],datasets:[
@@ -182,7 +172,7 @@ let chart=new Chart(roomChart,{
  options:{scales:{y:{position:"left"},y1:{position:"right",grid:{drawOnChartArea:false}}}}
 });
 
-// LOAD (nur erweitert)
+// LOAD
 async function load(){
  try{
   let d=await (await fetch(urlData)).json();
@@ -205,9 +195,7 @@ async function load(){
    temp:root.demo.temp,
    kty:root.demo.kty,
    hum:root.demo.hum,
-   co2:root.demo.co2,
-   weatherTemp:root.demo.weatherTemp,
-   weatherType:root.demo.weatherType
+   co2:root.demo.co2
   }:d;
 
   temp.innerText=v.temp;
@@ -233,85 +221,69 @@ async function load(){
 
   chart.update();
 
-  loadWeather(mode, v);
+  loadWeather();
 
  }catch(e){
   console.log("LOAD ERROR",e);
  }
 }
 
-// WETTER (erweitert)
-async function loadWeather(mode, demoData){
+// WETTER
+async function loadWeather(){
  try{
-  // DEMO MODUS
-function startDemo(){
- fetch(urlRoot,{
-  method:"PATCH",
-  body:JSON.stringify({
-    mode:"demo",
-    demo:{
-      temp:+tempSlider.value,
-      kty:+ktySlider.value,
-      hum:+humSlider.value,
-      co2:+co2Slider.value,
-      weatherTemp:+weatherSlider.value,
-      weatherType:weatherType.value
-    }
-  })
- });
-}
-
-  // LIVE MODUS (DEIN ORIGINAL + FIX)
   let url=`https://api.openweathermap.org/data/2.5/forecast?q=${cityName}&appid=${apiKey}&units=metric&lang=de`;
   let res=await fetch(url);
   let data=await res.json();
 
   if(!data.list) return;
 
-  let now = data.list[0];
-  let type = now.weather[0].main;
+  wNow.innerText=data.list[0].main.temp.toFixed(1)+"°C";
+  w1.innerText=data.list[1].main.temp.toFixed(1)+"°C";
+  w2.innerText=data.list[2].main.temp.toFixed(1)+"°C";
 
-  wNow.innerText = now.main.temp.toFixed(1)+"°C";
-  w1.innerText   = data.list[1].main.temp.toFixed(1)+"°C";
-  w2.innerText   = data.list[2].main.temp.toFixed(1)+"°C";
+  let forecast=data.list.find(x=>{
+    let d=new Date(x.dt*1000);
+    return d.getHours()==6;
+  });
 
-  city.innerText = getWeatherEmoji(type)+" "+cityName;
+  if(forecast){
+   w7.innerText=forecast.main.temp.toFixed(1)+"°C";
+  }
 
-  checkWeatherAlert(type);
+  city.innerText=cityName;
 
  }catch(e){
-  console.log("Wetter Fehler:", e);
+  console.log("Wetter Fehler",e);
  }
 }
 
-// AMPEL erweitert
+// CITY
+function setCity(){
+ cityName=cityInput.value;
+ localStorage.setItem("city",cityName);
+}
+
+// AMPEL
 function updateAmpel(c){
  if(c<800){ampel.style.background="green";ampelText.innerText="Gut";}
  else if(c<1200){ampel.style.background="orange";ampelText.innerText="Mittel";}
- else{
-  ampel.style.background="red";
-  ampelText.innerText="Lüften!";
-  showAlert("🫁 CO2 ZU HOCH! LÜFTEN!");
+ else{ampel.style.background="red";ampelText.innerText="Lüften!";}
+}
+
+// TEMP ALARM
+function checkTempAlarm(t){
+ if(displayLock) return;
+
+ if(t>=30){
+  showAlert("🔥 EXTREM HEISS!");
+ }
+ else if(t<=-1){
+  showAlert("❄️ EXTREM KALT!");
  }
 }
 
-// TEMP
-function checkTempAlarm(t){
- if(t>=30) showAlert("🔥 EXTREM HEISS!");
- if(t<=-1) showAlert("❄️ EXTREM KALT!");
-}
-
-// WETTER ALERT
-function checkWeatherAlert(type){
- if(type==="Snow") showAlert("❄️ ACHTUNG SCHNEE!");
- if(type==="Thunderstorm") showAlert("⛈️ ACHTUNG GEWITTER!");
- if(type==="Ash") showAlert("🌋 ACHTUNG ASCHE!");
-}
-
-// ALERT erweitert
+// ALERT
 function showAlert(text){
- if(!alarmActive() || displayLock) return;
-
  displayLock=true;
 
  let box=document.createElement("div");
@@ -323,6 +295,8 @@ function showAlert(text){
  box.style.background="red";
  box.style.padding="20px";
  box.style.borderRadius="15px";
+ box.style.fontSize="20px";
+ box.style.zIndex="9999";
 
  document.body.appendChild(box);
 
@@ -332,9 +306,53 @@ function showAlert(text){
  },10000);
 }
 
-// REST BLEIBT (Demo, Live, Handout, etc.)
+// HANDOUT
+let handoutURL="";
+function setHandout(d){
+ if(d.handout){
+  handoutURL=d.handout.replace(/"/g,"").trim();
+ }
+}
+function openPreview(){
+ if(handoutURL) window.open(handoutURL,"_blank");
+ else alert("Kein Handout vorhanden");
+}
+function downloadHandout(){
+ if(handoutURL) window.open(handoutURL,"_blank");
+ else alert("Kein Handout vorhanden");
+}
 
+// DEMO
+function startDemo(){
+ fetch(urlRoot,{
+  method:"PATCH",
+  body:JSON.stringify({
+    mode:"demo",
+    demo:{
+      temp:+tempSlider.value,
+      kty:+ktySlider.value,
+      hum:+humSlider.value,
+      co2:+co2Slider.value
+    }
+  })
+ });
+}
+
+// LIVE
+function goLive(){
+ fetch(urlRoot,{method:"PATCH",body:JSON.stringify({mode:"live"})});
+}
+
+// SWITCH SAVE
+function saveSwitch(){
+ switchTime=+switchInput.value;
+ localStorage.setItem("switchTime",switchTime);
+ location.reload();
+}
+
+// LOOP
 setInterval(load,3000);
+//setInterval(autoSwitch,switchTime);
 
 </script>
 
