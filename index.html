@@ -48,29 +48,21 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 <button onclick="show('handout')">📄 Handout</button>
 <button onclick="show('settings')" id="adminBtn" style="display:none">⚙️ Admin</button>
 
-<!-- RAUM -->
 <div id="raum" class="card">
-
 <h3>ESP Status</h3>
 <div id="espStatus" class="esp"></div>
 <p id="espText"></p>
 <p>📶 <span id="wifi"></span> dBm</p>
 <p>🔋 <span id="volt"></span> V</p>
 
-<div class="value">🌡️ Temp: <span id="temp">--</span> °C</div>
-<div class="value">🔥 KTY: <span id="kty">--</span> °C</div>
-<div class="value">💧 Hum: <span id="hum">--</span> %</div>
-<div class="value">🫁 CO2: <span id="co2">--</span> ppm</div>
-
-<h3>🌬️ Luftqualitäts-Ampel</h3>
-<div id="ampel" class="ampel"></div>
-<p id="ampelText"></p>
+<div class="value">🌡️ <span id="temp">--</span> °C</div>
+<div class="value">🔥 <span id="kty">--</span> °C</div>
+<div class="value">💧 <span id="hum">--</span> %</div>
+<div class="value">🫁 <span id="co2">--</span> ppm</div>
 
 <canvas id="chart"></canvas>
-
 </div>
 
-<!-- WETTER -->
 <div id="wetter" class="card" style="display:none">
 <input id="cityInput" placeholder="Ort">
 <button onclick="setCity()">Speichern</button>
@@ -80,55 +72,35 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 <p>+2h: <span id="w2"></span></p>
 </div>
 
-<!-- HANDOUT -->
-<div id="handout" class="card" style="display:none">
-<h2>📄 Handout</h2>
-<button onclick="openPreview()">👁️ Vorschau</button>
-<button onclick="downloadHandout()">📥 Download</button>
-</div>
-
-<!-- SETTINGS -->
 <div id="settings" class="card" style="display:none">
 
 <h3>🎮 Demo</h3>
 
-<p>🌡️ Temp: <span id="tempVal">20</span> °C</p>
+<p>🌡️ <span id="tempVal">20</span></p>
 <input id="tempSlider" type="range" min="-5" max="50" value="20">
 
-<p>🔥 KTY: <span id="ktyVal">22</span> °C</p>
+<p>🔥 <span id="ktyVal">22</span></p>
 <input id="ktySlider" type="range" min="-5" max="60" value="22">
 
-<p>💧 Hum: <span id="humVal">50</span> %</p>
+<p>💧 <span id="humVal">50</span></p>
 <input id="humSlider" type="range" min="0" max="100" value="50">
 
-<p>🫁 CO2: <span id="co2Val">800</span> ppm</p>
+<p>🫁 <span id="co2Val">800</span></p>
 <input id="co2Slider" type="range" min="400" max="2000" value="800">
 
-<p>🌦️ Wetter: <span id="weatherVal">15</span> °C</p>
+<p>🌦️ <span id="weatherVal">15</span></p>
 <input id="weatherSlider" type="range" min="-10" max="40" value="15">
 
 <select id="weatherType">
 <option>Clear</option>
-<option>Clouds</option>
 <option>Rain</option>
-<option>Thunderstorm</option>
 <option>Snow</option>
+<option>Thunderstorm</option>
 <option>Ash</option>
-<option>Wind</option>
 </select>
 
-<button onclick="startDemo()">🎮 Demo</button>
-<button onclick="goLive()">📡 Live</button>
-
-<h3>🔔 Alarm</h3>
-<select id="alarmMode">
-<option value="on">AN</option>
-<option value="1">Pause 1h</option>
-<option value="6">Pause 6h</option>
-<option value="24">Pause 24h</option>
-<option value="off">AUS</option>
-</select>
-<button onclick="saveAlarm()">Speichern</button>
+<button onclick="startDemo()">Demo</button>
+<button onclick="goLive()">Live</button>
 
 </div>
 
@@ -138,59 +110,67 @@ input,select{padding:10px;border-radius:10px;border:none;width:80%;margin:5px}
 
 let url="https://finalfsat23roomc-default-rtdb.europe-west1.firebasedatabase.app/.json";
 let apiKey="e733d08921989a3920c3e85507388b6e";
-let cityName="Worms";
-let handoutURL="";
-let outsideTemp=null;
 
-// ---------- LOGIN ----------
-function loginAdmin(){if(pw.value==="12345"){login.style.display="none";app.style.display="block";adminBtn.style.display="block";}}
-function loginSchueler(){login.style.display="none";app.style.display="block";}
+// 🔥 Ort speichern
+let cityName = localStorage.getItem("city") || "Worms";
 
-// ---------- NAV ----------
-function show(id){
- document.querySelectorAll(".card").forEach(x=>x.style.display="none");
- document.getElementById(id).style.display="block";
+function setCity(){
+ let val = cityInput.value.trim();
+ if(!val) return alert("Ort eingeben");
+ cityName = val;
+ localStorage.setItem("city", cityName);
+ loadWeather();
 }
 
-// ---------- CHART ----------
+// 🔥 DEMO LIVE UPDATE
+function updateDemo(){
+ fetch(url,{
+  method:"PATCH",
+  body:JSON.stringify({
+   mode:"demo",
+   demo:{
+    temp:+tempSlider.value,
+    kty:+ktySlider.value,
+    hum:+humSlider.value,
+    co2:+co2Slider.value,
+    weatherTemp:+weatherSlider.value,
+    weatherType:weatherType.value
+   }
+  })
+ });
+}
+
+// 🔥 SLIDER VERBINDEN
+[tempSlider,ktySlider,humSlider,co2Slider,weatherSlider].forEach(s=>{
+ s.oninput=()=>{
+  tempVal.innerText=tempSlider.value;
+  ktyVal.innerText=ktySlider.value;
+  humVal.innerText=humSlider.value;
+  co2Val.innerText=co2Slider.value;
+  weatherVal.innerText=weatherSlider.value;
+  updateDemo();
+ };
+});
+
+weatherType.onchange=updateDemo;
+
+// 🔥 CHART
 let chart=new Chart(document.getElementById("chart"),{
  type:"line",
  data:{labels:[],datasets:[
-  {label:"Temp °C",data:[],borderColor:"orange"},
-  {label:"KTY °C",data:[],borderColor:"red"},
-  {label:"Hum %",data:[],borderColor:"blue"},
-  {label:"CO2 ppm",data:[],borderColor:"green"}
+  {label:"Temp",data:[],borderColor:"orange"},
+  {label:"KTY",data:[],borderColor:"red"},
+  {label:"Hum",data:[],borderColor:"blue"},
+  {label:"CO2",data:[],borderColor:"green"}
  ]}
 });
 
-// ---------- EMOJI ----------
-function getEmoji(type){
- if(type.includes("Clear")) return "☀️";
- if(type.includes("Clouds")) return "☁️";
- if(type.includes("Rain")) return "🌧️";
- if(type.includes("Thunderstorm")) return "⛈️";
- if(type.includes("Snow")) return "❄️";
- if(type.includes("Ash")) return "🌋";
- if(type.includes("Wind")) return "💨";
- return "🌦️";
-}
-
-// ---------- ALARM ----------
-function showAlarm(text){
- alarmBox.innerText="⚠️ "+text;
- alarmBox.style.display="block";
- setTimeout(()=>alarmBox.style.display="none",5000);
-}
-
-// ---------- LOAD ----------
+// 🔥 LOAD
 async function load(){
  let d=await (await fetch(url)).json();
 
  let s=d.status||{};
- let diff=(Date.now()-s.heartbeat)/1000;
-
- espStatus.style.background=diff<10?"green":"red";
- espText.innerText=diff<10?"Online":"Offline";
+ espStatus.style.background=(Date.now()-s.heartbeat<10000)?"green":"red";
  wifi.innerText=s.rssi||"--";
  volt.innerText=s.voltage||"--";
 
@@ -203,13 +183,11 @@ async function load(){
  hum.innerText=v.hum;
  co2.innerText=v.co2;
 
- // GRAPH FIX
- let t=new Date().toLocaleTimeString();
- chart.data.labels.push(t);
- chart.data.datasets[0].data.push(v.temp || 0);
- chart.data.datasets[1].data.push(v.kty || 0);
- chart.data.datasets[2].data.push(v.hum || 0);
- chart.data.datasets[3].data.push(v.co2 || 0);
+ chart.data.labels.push(new Date().toLocaleTimeString());
+ chart.data.datasets[0].data.push(v.temp||0);
+ chart.data.datasets[1].data.push(v.kty||0);
+ chart.data.datasets[2].data.push(v.hum||0);
+ chart.data.datasets[3].data.push(v.co2||0);
 
  if(chart.data.labels.length>20){
   chart.data.labels.shift();
@@ -217,67 +195,48 @@ async function load(){
  }
 
  chart.update();
-
- setHandout(d);
 }
 
-// ---------- WETTER ----------
+// 🔥 WETTER
+function emoji(t){
+ if(t.includes("Clear"))return"☀️";
+ if(t.includes("Rain"))return"🌧️";
+ if(t.includes("Snow"))return"❄️";
+ if(t.includes("Thunderstorm"))return"⛈️";
+ if(t.includes("Ash"))return"🌋";
+ return"☁️";
+}
+
 async function loadWeather(){
  let d=await (await fetch(url)).json();
 
  if(d.mode==="demo"){
-  outsideTemp=d.demo.weatherTemp;
-  let e=getEmoji(d.demo.weatherType);
-
   city.innerText="📍 Demo";
-  wNow.innerText=e+" "+outsideTemp+"°C";
-  w1.innerText=e+" "+(outsideTemp+1)+"°C";
-  w2.innerText=e+" "+(outsideTemp+2)+"°C";
+  let t=d.demo.weatherTemp;
+  let e=emoji(d.demo.weatherType);
+  wNow.innerText=e+" "+t+"°C";
+  w1.innerText=e+" "+(t+1)+"°C";
+  w2.innerText=e+" "+(t+2)+"°C";
   return;
  }
 
  let res=await fetch(`https://api.openweathermap.org/data/2.5/forecast?q=${cityName}&appid=${apiKey}&units=metric`);
  let w=await res.json();
 
+ if(w.cod!=="200") return;
+
  city.innerText="📍 "+w.city.name;
 
- let now=w.list[0];
- let h1=w.list[1];
- let h2=w.list[2];
-
- outsideTemp=now.main.temp;
-
- wNow.innerText=getEmoji(now.weather[0].main)+" "+now.main.temp.toFixed(1)+"°C";
- w1.innerText=getEmoji(h1.weather[0].main)+" "+h1.main.temp.toFixed(1)+"°C";
- w2.innerText=getEmoji(h2.weather[0].main)+" "+h2.main.temp.toFixed(1)+"°C";
+ wNow.innerText=emoji(w.list[0].weather[0].main)+" "+w.list[0].main.temp.toFixed(1)+"°C";
+ w1.innerText=emoji(w.list[1].weather[0].main)+" "+w.list[1].main.temp.toFixed(1)+"°C";
+ w2.innerText=emoji(w.list[2].weather[0].main)+" "+w.list[2].main.temp.toFixed(1)+"°C";
 }
 
-// ---------- DEMO ----------
-function startDemo(){
- fetch(url,{method:"PATCH",body:JSON.stringify({
-  mode:"demo",
-  demo:{
-    temp:+tempSlider.value,
-    kty:+ktySlider.value,
-    hum:+humSlider.value,
-    co2:+co2Slider.value,
-    weatherTemp:+weatherSlider.value,
-    weatherType:weatherType.value
-  }
- })});
-}
+// 🔥 MODES
+function startDemo(){updateDemo();}
+function goLive(){fetch(url,{method:"PATCH",body:JSON.stringify({mode:"live"})});}
 
-// ---------- LIVE ----------
-function goLive(){
- fetch(url,{method:"PATCH",body:JSON.stringify({mode:"live"})});
-}
-
-// ---------- HANDOUT ----------
-function setHandout(d){ if(d.handout) handoutURL=d.handout;}
-function openPreview(){ if(handoutURL) window.open(handoutURL);}
-function downloadHandout(){ if(handoutURL) window.open(handoutURL);}
-
-// ---------- LOOP ----------
+// 🔥 LOOP
 setInterval(load,3000);
 setInterval(loadWeather,10000);
 
