@@ -597,7 +597,7 @@ async function load() {
     el("wifi").innerText = rssi;
     el("volt").innerText = voltage;
 
-    const v = (modeCache === "demo" && root.demo) ? root.demo : root.data;
+    const v = (modeCache === "demo" && root.demo) ? root.demo : root.sensor;
     if (!v) return;
 
     el("temp").innerText = v.temp ?? "--";
